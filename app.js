@@ -121,7 +121,10 @@ function rendre() {
       <div><strong>${esc(r.plan.type)}</strong><br>
         <span class="muted">${r.derniere ? `Fait le ${dateFmt(r.derniere.date)} à ${kmFmt(r.derniere.km)} · prochain ${esc(r.texte)}` : esc(r.texte)}</span>
       </div>
-      <span class="badge ${r.statut}">${LIB_STATUT[r.statut]}</span>
+      <span class="droite">
+        <span class="badge ${r.statut}">${LIB_STATUT[r.statut]}</span>
+        <button class="secondary plus" data-ajout="${r.plan.id}" title="Enregistrer cet entretien">+</button>
+      </span>
     </li>`).join("") : `<li class="muted">Aucune opération dans le plan d'entretien.</li>`;
 
   // Coûts
@@ -159,9 +162,7 @@ function rendre() {
     </tr>`).join("");
   $("#vide-interv").hidden = ints.length > 0;
 
-  // Types proposés
-  const types = new Set([...data.plan.map(p => p.type), ...ints.map(i => i.type), "Réparation", "Autre"]);
-  $("#types").innerHTML = [...types].map(t => `<option value="${esc(t)}">`).join("");
+  rendreChoix();
 
   // Plan
   $("#table-plan tbody").innerHTML = data.plan.map(p => `
@@ -177,12 +178,79 @@ function rendre() {
   $("#v-immat").value = v.immat; $("#v-mec").value = v.mec;
 }
 
-// ---------- Événements ----------
-document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => {
+// ---------- Sélection des entretiens (onglet « Ajouter un entretien ») ----------
+// choix : clé (id d'opération du plan, ou "autre") -> { coche, cout, nom }
+let choix = {};
+let idEdition = null; // id de l'intervention en cours de modification
+
+function rendreChoix() {
+  const statuts = Object.fromEntries(calculerRappels().map(r => [r.plan.id, r.statut]));
+  const lignes = data.plan.map(p => ({ cle: p.id, type: p.type, statut: statuts[p.id] }));
+  lignes.push({ cle: "autre" });
+  $("#choix-entretiens").innerHTML = lignes.map(l => {
+    const c = choix[l.cle] || {};
+    const off = c.coche ? "" : "disabled";
+    return `<li class="${c.coche ? "coche" : ""}">
+      <label>
+        <input type="checkbox" data-cle="${l.cle}" ${c.coche ? "checked" : ""}>
+        ${l.type ? `<span>${esc(l.type)}</span><span class="badge ${l.statut}">${LIB_STATUT[l.statut]}</span>` : "<span>Autre</span>"}
+      </label>
+      ${l.type ? "" : `<input type="text" data-cle="autre" data-champ="nom" placeholder="ex. Réparation, batterie…" value="${esc(c.nom || "")}" ${off}>`}
+      <input type="number" min="0" step="0.01" data-cle="${l.cle}" data-champ="cout" placeholder="Coût TTC €" value="${c.cout ?? ""}" ${off}>
+    </li>`;
+  }).join("");
+  majTotal();
+}
+
+function selection() {
+  const ids = new Set(data.plan.map(p => p.id));
+  return Object.entries(choix).filter(([cle, c]) => c.coche && (cle === "autre" || ids.has(cle)));
+}
+function majTotal() {
+  const sel = selection();
+  const total = sel.reduce((s, [, c]) => s + (Number(c.cout) || 0), 0);
+  $("#i-total").textContent = sel.length
+    ? `${sel.length} opération${sel.length > 1 ? "s" : ""} · total ${eur(total)}` : "";
+}
+
+$("#choix-entretiens").addEventListener("change", e => {
+  const cb = e.target;
+  if (cb.type !== "checkbox") return;
+  const cle = cb.dataset.cle;
+  // En modification, une intervention ne porte que sur une seule opération
+  if (idEdition && cb.checked) Object.values(choix).forEach(c => { c.coche = false; });
+  choix[cle] = { ...choix[cle], coche: cb.checked };
+  rendreChoix();
+  if (cb.checked) {
+    const champ = cle === "autre" ? `[data-cle="autre"][data-champ="nom"]` : `[data-cle="${cle}"][data-champ="cout"]`;
+    $("#choix-entretiens " + champ).focus();
+  }
+});
+$("#choix-entretiens").addEventListener("input", e => {
+  const { cle, champ } = e.target.dataset;
+  if (!champ) return;
+  choix[cle] = { ...choix[cle], [champ]: e.target.value };
+  majTotal();
+});
+
+function allerOnglet(nom) {
   document.querySelectorAll(".tab, .panel").forEach(e => e.classList.remove("active"));
-  b.classList.add("active");
-  $("#" + b.dataset.tab).classList.add("active");
-}));
+  $(`.tab[data-tab="${nom}"]`).classList.add("active");
+  $("#" + nom).classList.add("active");
+}
+
+// ---------- Événements ----------
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => allerOnglet(b.dataset.tab)));
+
+$("#liste-rappels").addEventListener("click", e => {
+  const id = e.target.dataset.ajout;
+  if (!id) return;
+  resetFormInterv();
+  choix = { [id]: { coche: true } };
+  rendreChoix();
+  allerOnglet("historique");
+  $("#i-km").focus();
+});
 
 $("#form-km").addEventListener("submit", e => {
   e.preventDefault();
@@ -195,28 +263,42 @@ $("#form-km").addEventListener("submit", e => {
 
 function resetFormInterv() {
   $("#form-interv").reset();
-  $("#i-id").value = "";
+  idEdition = null;
+  choix = {};
   $("#i-date").value = aujourdhui();
-  $("#i-cout").value = 0;
-  $("#titre-form-interv").textContent = "Ajouter une intervention";
+  if (kmCourant() != null) $("#i-km").value = kmCourant();
+  $("#titre-form-interv").textContent = "Ajouter un entretien";
+  $("#aide-choix").textContent = "Coche ce qui a été fait et indique le coût TTC de chaque opération.";
   $("#i-annuler").hidden = true;
+  rendreChoix();
 }
 
 $("#form-interv").addEventListener("submit", e => {
   e.preventDefault();
-  const obj = {
-    id: $("#i-id").value || uid(),
+  const sel = selection();
+  if (!sel.length) return toast("Coche au moins un entretien");
+  const operations = sel.map(([cle, c]) => ({
+    type: cle === "autre" ? (c.nom || "").trim() : data.plan.find(p => p.id === cle).type,
+    cout: Number(c.cout) || 0,
+  }));
+  if (operations.some(o => !o.type)) return toast("Précise le nom de l'opération « Autre »");
+
+  const commun = {
     date: $("#i-date").value,
     km: Number($("#i-km").value),
-    type: $("#i-type").value.trim(),
-    cout: Number($("#i-cout").value) || 0,
     garage: $("#i-garage").value.trim(),
     description: $("#i-desc").value.trim(),
   };
-  const idx = data.interventions.findIndex(i => i.id === obj.id);
-  if (idx >= 0) data.interventions[idx] = obj; else data.interventions.push(obj);
+  const modif = idEdition;
+  if (modif) {
+    const idx = data.interventions.findIndex(i => i.id === modif);
+    data.interventions[idx] = { id: modif, ...commun, ...operations[0] };
+  } else {
+    operations.forEach(o => data.interventions.push({ id: uid(), ...commun, ...o }));
+  }
   sauver(); resetFormInterv(); rendre();
-  toast(idx >= 0 ? "Intervention modifiée" : "Intervention ajoutée");
+  toast(modif ? "Entretien modifié"
+    : operations.length > 1 ? `${operations.length} entretiens ajoutés` : "Entretien ajouté");
 });
 $("#i-annuler").addEventListener("click", resetFormInterv);
 
@@ -224,10 +306,14 @@ $("#table-interv").addEventListener("click", e => {
   const ed = e.target.dataset.edit, del = e.target.dataset.del;
   if (ed) {
     const i = data.interventions.find(x => x.id === ed);
-    $("#i-id").value = i.id; $("#i-date").value = i.date; $("#i-km").value = i.km;
-    $("#i-type").value = i.type; $("#i-cout").value = i.cout; $("#i-garage").value = i.garage || "";
-    $("#i-desc").value = i.description || "";
-    $("#titre-form-interv").textContent = "Modifier l'intervention";
+    idEdition = i.id;
+    $("#i-date").value = i.date; $("#i-km").value = i.km;
+    $("#i-garage").value = i.garage || ""; $("#i-desc").value = i.description || "";
+    const p = data.plan.find(x => norm(x.type) === norm(i.type));
+    choix = p ? { [p.id]: { coche: true, cout: i.cout } } : { autre: { coche: true, cout: i.cout, nom: i.type } };
+    rendreChoix();
+    $("#titre-form-interv").textContent = "Modifier l'entretien";
+    $("#aide-choix").textContent = "En modification, une seule opération peut être cochée.";
     $("#i-annuler").hidden = false;
     $("#form-interv").scrollIntoView({ behavior: "smooth" });
   }

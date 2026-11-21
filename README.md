@@ -5,7 +5,7 @@ Application web pour suivre l'entretien de sa voiture, sans installation ni comp
 ## Fonctionnalités
 
 - **Tableau de bord** : kilométrage actuel, prochains entretiens avec un statut (en retard, bientôt, à jour), coûts (total, année en cours, coût pour 1 000 km, répartition par type).
-- **Historique** : ajout, modification et suppression des interventions (date, km, type, coût, garage, détails), avec un filtre de recherche.
+- **Ajouter un entretien** : on coche une ou plusieurs opérations du plan (ou « Autre »), avec le coût de chacune ; la date, le kilométrage, le garage et les détails sont communs. Le bouton « + » d'un rappel du tableau de bord ouvre ce formulaire avec l'opération déjà cochée. L'historique, en dessous, permet de modifier, supprimer et filtrer les interventions.
 - **Plan d'entretien** : périodicités en km et/ou en mois, modifiables (valeurs par défaut indicatives).
 - **Véhicule** : marque, modèle, immatriculation, date de mise en circulation.
 - **Sauvegarde** : export/import JSON, export CSV de l'historique (lisible dans Excel).
