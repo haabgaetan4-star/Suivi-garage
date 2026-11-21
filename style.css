@@ -239,6 +239,37 @@ button:active, .bouton:active { transform: scale(.97); }
 }
 .barre-actions .principal { flex: 1; min-height: 52px; font-size: 1.02rem; }
 
+/* ---------- Scan de facture ---------- */
+.scan { margin-top: 16px; }
+.bouton-scan { min-height: 52px; font-size: 1.02rem; cursor: pointer; }
+.bouton-scan svg, .btn-facture svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.scan-etat { display: flex; align-items: center; gap: 12px; margin-top: 16px; border-color: var(--accent); }
+.scan-etat img { width: 56px; height: 72px; object-fit: cover; border-radius: 8px; flex: none; background: var(--bg); }
+.scan-texte { flex: 1; min-width: 0; }
+.scan-texte .petit { margin-top: 2px; }
+.scan-alerte { color: var(--soon); }
+.progression { height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; margin-top: 8px; }
+.progression i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width .3s; }
+
+.btn-facture { min-height: 36px; padding: 0 12px; margin-top: 10px; font-size: .85rem; background: var(--accent-doux); color: var(--accent); }
+.btn-facture svg { width: 18px; height: 18px; }
+
+.visionneuse {
+  position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, .92);
+  display: flex; flex-direction: column;
+  padding: calc(56px + env(safe-area-inset-top)) 0 env(safe-area-inset-bottom);
+}
+.visio-cadre { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; -webkit-overflow-scrolling: touch; }
+.visio-cadre img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; }
+.visio-cadre.zoom { display: block; }
+.visio-cadre.zoom img { max-width: none; max-height: none; width: 220%; cursor: zoom-out; }
+.visio-aide { color: #bbb; text-align: center; font-size: .8rem; margin: 8px 0 12px; }
+.visio-fermer {
+  position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px;
+  width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, .15); color: #fff; font-size: 1.1rem;
+}
+
 /* ---------- Historique ---------- */
 .visite { padding: 14px 16px; }
 .visite-tete { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }

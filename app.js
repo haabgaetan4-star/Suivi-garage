@@ -61,6 +61,7 @@ const PLANS_TYPES = [
 const ICONES = {
   crayon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
   poubelle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  facture: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>',
 };
 
 // ---------- Utilitaires ----------
@@ -318,6 +319,8 @@ function rendreHistorique() {
         <button type="button" class="icone-btn suppr" data-del="${i.id}" aria-label="Supprimer">${ICONES.poubelle}</button>
       </li>`).join("")}</ul>
       ${descs.length ? `<p class="visite-desc">${esc(descs.join("\n"))}</p>` : ""}
+      ${[...new Set(ops.map(i => i.facture).filter(Boolean))].map((f, n, tab) =>
+        `<button type="button" class="btn-facture" data-facture="${esc(f)}">${ICONES.facture}Voir la facture${tab.length > 1 ? ` ${n + 1}` : ""}</button>`).join(" ")}
     </div>`;
   }).join("");
   $("#vide-interv").hidden = liste.length > 0;
@@ -424,10 +427,13 @@ function resetFormInterv() {
   $("#titre-form-interv").textContent = "Nouvel entretien";
   $("#aide-choix").textContent = "Touche une opération pour la cocher, puis indique son coût.";
   $("#i-annuler").hidden = true;
+  retirerPhoto();
+  $("#scan-libelle").textContent = "Scanner une facture";
+  $("#scan-aide").textContent = "Prends la facture en photo : date, kilométrage, opérations et montants sont préremplis. Vérifie avant d'enregistrer.";
   rendreChoix();
 }
 
-$("#form-interv").addEventListener("submit", e => {
+$("#form-interv").addEventListener("submit", async e => {
   e.preventDefault();
   const date = $("#i-date").value, kmTxt = $("#i-km").value;
   if (!date) return toast("Indique la date");
@@ -442,18 +448,327 @@ $("#form-interv").addEventListener("submit", e => {
   if (operations.some(o => !o.type)) return toast("Donne un nom à l'opération « Autre »");
 
   const commun = { date, km: Number(kmTxt), garage: $("#i-garage").value.trim(), description: $("#i-desc").value.trim() };
+  // photo de la facture : enregistrée sur l'appareil et rattachée aux opérations
+  let facture = null;
+  if (photoEnCours) {
+    try { await Photos.mettre(photoEnCours.id, photoEnCours.blob); facture = photoEnCours.id; }
+    catch (err) { toast("⚠️ Photo non enregistrée (stockage indisponible)"); }
+  }
   const modif = idEdition;
   if (modif) {
     const idx = v.interventions.findIndex(i => i.id === modif);
-    v.interventions[idx] = { id: modif, ...commun, ...operations[0] };
+    const avecFacture = facture || v.interventions[idx].facture;
+    v.interventions[idx] = { id: modif, ...commun, ...operations[0], ...(avecFacture ? { facture: avecFacture } : {}) };
   } else {
-    operations.forEach(o => v.interventions.push({ id: uid(), ...commun, ...o }));
+    operations.forEach(o => v.interventions.push({ id: uid(), ...commun, ...o, ...(facture ? { facture } : {}) }));
   }
   sauver(); resetFormInterv(); rendre();
+  if (modif && facture) nettoyerPhotos();
   allerOnglet(modif ? "historique" : "accueil");
   toast(modif ? "Entretien modifié" : operations.length > 1 ? `${operations.length} opérations enregistrées` : "Entretien enregistré");
 });
 $("#i-annuler").addEventListener("click", () => { resetFormInterv(); allerOnglet("historique"); });
+
+// ---------- Photos de factures (IndexedDB, sur l'appareil uniquement) ----------
+const Photos = {
+  db: null,
+  ouvrir() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((ok, ko) => {
+      const r = indexedDB.open("suivi-garage-photos", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("factures");
+      r.onsuccess = () => ok(this.db = r.result);
+      r.onerror = () => ko(r.error);
+    });
+  },
+  async op(mode, fn) {
+    const db = await this.ouvrir();
+    return new Promise((ok, ko) => {
+      const tx = db.transaction("factures", mode);
+      const req = fn(tx.objectStore("factures"));
+      tx.oncomplete = () => ok(req && req.result);
+      tx.onerror = () => ko(tx.error);
+    });
+  },
+  mettre(id, blob) { return this.op("readwrite", s => s.put(blob, id)); },
+  lire(id) { return this.op("readonly", s => s.get(id)); },
+  supprimer(id) { return this.op("readwrite", s => s.delete(id)); },
+  cles() { return this.op("readonly", s => s.getAllKeys()); },
+};
+// Supprime les photos qui ne sont plus rattachées à aucune opération
+async function nettoyerPhotos() {
+  try {
+    const utilisees = new Set(data.vehicules.flatMap(v => v.interventions.map(i => i.facture)).filter(Boolean));
+    for (const cle of await Photos.cles()) if (!utilisees.has(cle)) await Photos.supprimer(cle);
+  } catch (e) { /* stockage indisponible */ }
+}
+
+function chargerImage(fichier) {
+  return new Promise((ok, ko) => {
+    const url = URL.createObjectURL(fichier);
+    const img = new Image();
+    img.onload = () => ok(img);
+    img.onerror = () => ko(new Error("image illisible"));
+    img.src = url;
+  });
+}
+function redimensionner(img, cote) {
+  const r = Math.min(1, cote / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.naturalWidth * r); c.height = Math.round(img.naturalHeight * r);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+// Niveaux de gris + contraste renforcé : améliore nettement la reconnaissance des photos
+function preparerPourLecture(img) {
+  const c = redimensionner(img, 2200), ctx = c.getContext("2d");
+  const d = ctx.getImageData(0, 0, c.width, c.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4) {
+    const g = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+    const v = Math.max(0, Math.min(255, (g - 128) * 1.5 + 140));
+    p[i] = p[i + 1] = p[i + 2] = v;
+  }
+  ctx.putImageData(d, 0, 0);
+  return c;
+}
+
+// ---------- Lecture de la facture (OCR gratuit dans le navigateur : Tesseract.js) ----------
+const OCR = window.OCR_CHEMINS || {
+  script: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
+  workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+  corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",
+  langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/fra@1.0.0/4.0.0_best_int",
+};
+function chargerTesseract() {
+  if (window.Tesseract) return Promise.resolve();
+  return new Promise((ok, ko) => {
+    const s = document.createElement("script");
+    s.src = OCR.script; s.onload = ok; s.onerror = () => ko(new Error("chargement"));
+    document.head.appendChild(s);
+  });
+}
+// Deux lectures avec des découpages de page différents (bloc unique / colonnes) :
+// selon la mise en page de la facture, l'une ou l'autre perd moins de lignes.
+const MODES_LECTURE = ["6", "4"];
+async function lireTexte(canvas, progression) {
+  await chargerTesseract();
+  let passe = 0;
+  const worker = await Tesseract.createWorker("fra", 1, {
+    workerPath: OCR.workerPath, corePath: OCR.corePath, langPath: OCR.langPath,
+    logger: m => {
+      if (m.status === "recognizing text") progression(0.25 + (passe + m.progress) / MODES_LECTURE.length * 0.75, "Lecture du texte…");
+      else if (/load|initializ/.test(m.status)) progression(Math.min(0.25, (m.progress || 0) * 0.25), "Préparation (première fois : un peu plus long)…");
+    },
+  });
+  try {
+    const textes = [];
+    for (const psm of MODES_LECTURE) {
+      await worker.setParameters({ tessedit_pageseg_mode: psm, preserve_interword_spaces: "1" });
+      textes.push((await worker.recognize(canvas)).data.text);
+      passe++;
+    }
+    return textes;
+  } finally { worker.terminate(); }
+}
+// Garde l'analyse qui explique le mieux le total (plus petit reste non attribué), puis la plus complète
+function meilleureAnalyse(textes, plan) {
+  const score = r => [r.total ? Math.abs(r.reste) : Infinity, -Object.keys(r.ops).length, -(!!r.date + !!r.km)];
+  return textes.map(t => analyserFacture(t, plan)).sort((a, b) => {
+    const sa = score(a), sb = score(b);
+    for (let i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) return sa[i] - sb[i];
+    return 0;
+  })[0];
+}
+
+// --- Analyse du texte reconnu ---
+const sansAccents = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const RE_DATE = /\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4}|\d{2})\b/g;
+const RE_MONTANT = /(\d{1,3}(?:[   .]\d{3})+|\d+)[,.](\d{2})(?!\d)/g;
+const MOIS_FR = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"];
+const montantsLigne = l => [...l.replace(RE_DATE, " ").matchAll(RE_MONTANT)]
+  .map(m => Number(m[1].replace(/[   .]/g, "") + "." + m[2]));
+const iso = (a, m, j) => `${a}-${String(m).padStart(2, "0")}-${String(j).padStart(2, "0")}`;
+
+function trouverDate(lignes) {
+  const cands = [];
+  lignes.forEach((l, idx) => {
+    const s = sansAccents(l), prio = /date|factur|emis/.test(s) ? 0 : 1;
+    for (const m of s.matchAll(RE_DATE)) {
+      const a = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+      cands.push({ a, m: Number(m[2]), j: Number(m[1]), prio, idx });
+    }
+    for (const m of s.matchAll(new RegExp(`\\b(\\d{1,2})(?:er)?\\s+(${MOIS_FR.join("|")})\\s+(\\d{4})\\b`, "g")))
+      cands.push({ a: Number(m[3]), m: MOIS_FR.indexOf(m[2]) + 1, j: Number(m[1]), prio, idx });
+  });
+  const ok = cands
+    .filter(c => c.m >= 1 && c.m <= 12 && c.j >= 1 && c.j <= 31 && c.a >= 1990 && iso(c.a, c.m, c.j) <= aujourdhui())
+    .sort((x, y) => x.prio - y.prio || x.idx - y.idx);
+  return ok.length ? iso(ok[0].a, ok[0].m, ok[0].j) : null;
+}
+function trouverKm(lignes) {
+  const nombre = "(\\d{1,3}(?:[ \\u00a0\\u202f.]\\d{3})+|\\d{3,7})";
+  for (const l of lignes) {
+    const s = sansAccents(l);
+    const m = s.match(new RegExp(`(?:kilometrage|kilometres|compteur|km)\\s*[:.]?\\s*${nombre}`))
+      || s.match(new RegExp(`${nombre}\\s*(?:km|kms)\\b`));
+    if (m) { const n = Number(m[1].replace(/\D/g, "")); if (n >= 100 && n < 2e6) return n; }
+  }
+  return null;
+}
+function trouverTotal(lignes, motif) {
+  for (const l of [...lignes].reverse()) {
+    if (!motif.test(sansAccents(l))) continue;
+    const ms = montantsLigne(l);
+    if (ms.length) return ms[ms.length - 1];
+  }
+  return null;
+}
+function trouverGarage(lignes) {
+  return lignes.slice(0, 5).map(l => l.trim()).find(l => {
+    const s = sansAccents(l);
+    return (l.match(/[a-zà-ÿ]/gi) || []).length >= 4 && l.length <= 40
+      && !/factur|devis|date|client|tel|n[°o]|siret|page|www|@/.test(s);
+  }) || null;
+}
+// Mots-clés qui relient une ligne de facture à une opération du plan
+const SYNONYMES = [
+  ["vidange", ["vidange", "huile moteur", "huile"]],
+  ["filtre a huile", ["filtre a huile", "filtre huile", "filtre d'huile", "filtre de huile"]],
+  ["habitacle", ["habitacle", "pollen", "microfiltre"]],
+  ["filtre a air", ["filtre a air", "filtre air", "filtre d'air"]],
+  ["carburant", ["carburant", "gazole", "gasoil", "filtre a gaz"]],
+  ["liquide de frein", ["liquide de frein", "liquide frein", "dot 4", "dot4", "purge"]],
+  ["plaquette", ["plaquette"]],
+  ["pneu", ["pneu"]],
+  ["controle technique", ["controle technique"]],
+  ["chaine", ["chaine", "graissage"]],
+  ["bougie", ["bougie"]],
+  ["soupape", ["soupape"]],
+  ["refroidissement", ["refroidissement", "antigel", "anti-gel"]],
+  ["durite", ["durite"]],
+  ["courroie", ["courroie"]],
+];
+function motsCles(type) {
+  const t = sansAccents(type), k = new Set([t]);
+  SYNONYMES.forEach(([cle, syn]) => { if (t.includes(cle)) syn.forEach(x => k.add(x)); });
+  return [...k];
+}
+function analyserFacture(texte, plan) {
+  const lignes = texte.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const res = { date: trouverDate(lignes), km: trouverKm(lignes), garage: trouverGarage(lignes), total: null, ops: {}, reste: 0 };
+  res.total = trouverTotal(lignes, /net a payer|a payer|total\s*t\.?t\.?c|montant\s*t\.?t\.?c|\bttc\b/);
+  const ht = trouverTotal(lignes, /total\s*h\.?t\b|montant\s*h\.?t\b/);
+
+  const recap = /total|tva|t\.v\.a|net a payer|a payer|acompte|remise|sous-total|solde|\bht\b|\bttc\b/;
+  const cles = plan.map(p => ({ id: p.id, mots: motsCles(p.type) }));
+  let sommeLignes = 0;
+  lignes.forEach(l => {
+    const s = sansAccents(l);
+    if (recap.test(s)) return;
+    const ms = montantsLigne(l), montant = ms.length ? ms[ms.length - 1] : 0;
+    sommeLignes += montant;
+    // l'opération dont le mot-clé reconnu est le plus long l'emporte (« filtre à huile » plutôt que « huile »)
+    let meilleur = null, long = 0;
+    cles.forEach(c => c.mots.forEach(m => { if (s.includes(m) && m.length > long) { meilleur = c.id; long = m.length; } }));
+    if (meilleur) res.ops[meilleur] = (res.ops[meilleur] || 0) + montant;
+  });
+  // lignes en HT et total en TTC : on applique le taux pour obtenir des montants TTC
+  if (res.total && ht && res.total > ht && Math.abs(sommeLignes - ht) < Math.abs(sommeLignes - res.total)) {
+    const taux = res.total / ht;
+    Object.keys(res.ops).forEach(id => { res.ops[id] = Math.round(res.ops[id] * taux * 100) / 100; });
+  }
+  if (res.total) {
+    const reparti = Object.values(res.ops).reduce((a, b) => a + b, 0);
+    if (Object.keys(res.ops).length === 1 && reparti === 0) res.ops[Object.keys(res.ops)[0]] = res.total;
+    else res.reste = Math.round((res.total - reparti) * 100) / 100;
+  }
+  return res;
+}
+
+// --- Interface du scan ---
+let photoEnCours = null; // { id, blob, url }
+
+function retirerPhoto() {
+  if (photoEnCours) URL.revokeObjectURL(photoEnCours.url);
+  photoEnCours = null;
+  $("#scan-etat").hidden = true;
+  $("#bloc-scan").hidden = false;
+}
+function etatScan(titre, detail, progression) {
+  $("#scan-titre").textContent = titre;
+  $("#scan-detail").innerHTML = detail || "";
+  $("#scan-progression").hidden = progression == null;
+  if (progression != null) $("#scan-barre").style.width = Math.round(progression * 100) + "%";
+}
+
+$("#i-photo").addEventListener("change", async e => {
+  const fichier = e.target.files[0];
+  e.target.value = "";
+  if (!fichier) return;
+  let img;
+  try { img = await chargerImage(fichier); } catch { return toast("⚠️ Image illisible"); }
+
+  const blob = await new Promise(ok => redimensionner(img, 1600).toBlob(ok, "image/jpeg", 0.72));
+  retirerPhoto();
+  photoEnCours = { id: "f-" + uid(), blob, url: URL.createObjectURL(blob) };
+  $("#scan-miniature").src = photoEnCours.url;
+  $("#bloc-scan").hidden = true;
+  $("#scan-etat").hidden = false;
+
+  if (idEdition) { etatScan("Facture jointe", "Elle sera rattachée à cette opération à l'enregistrement."); return; }
+
+  const enCours = photoEnCours;
+  etatScan("Lecture de la facture…", "Préparation…", 0);
+  try {
+    const textes = await lireTexte(preparerPourLecture(img), (p, msg) => { if (photoEnCours === enCours) etatScan("Lecture de la facture…", msg, p); });
+    if (photoEnCours !== enCours) return; // photo retirée pendant la lecture
+    const r = meilleureAnalyse(textes, V().plan);
+    // date ou km absents d'une lecture : on les reprend de l'autre
+    const autres = textes.map(t => analyserFacture(t, V().plan));
+    r.date = r.date || autres.map(x => x.date).find(Boolean) || null;
+    r.km = r.km || autres.map(x => x.km).find(Boolean) || null;
+    r.garage = r.garage || autres.map(x => x.garage).find(Boolean) || null;
+    preremplir(r);
+  } catch (err) {
+    if (photoEnCours !== enCours) return;
+    etatScan("Lecture impossible", `<span class="scan-alerte">${err.message === "chargement" ? "Pas de connexion pour charger l'outil de lecture." : "Le texte n'a pas pu être lu."}</span> La photo reste jointe : remplis le formulaire à la main.`);
+  }
+});
+$("#scan-retirer").addEventListener("click", retirerPhoto);
+
+function preremplir(r) {
+  const trouve = [], manque = [];
+  if (r.date) { $("#i-date").value = r.date; trouve.push("date"); } else manque.push("date");
+  if (r.km) { $("#i-km").value = r.km; trouve.push("kilométrage"); } else manque.push("kilométrage");
+  if (r.garage && !$("#i-garage").value) $("#i-garage").value = r.garage;
+
+  choix = {};
+  Object.entries(r.ops).forEach(([id, montant]) => { choix[id] = { coche: true, cout: montant ? montant.toFixed(2) : "" }; });
+  if (r.reste > 0.5) choix.autre = { coche: true, nom: "Main d'œuvre et divers", cout: r.reste.toFixed(2) };
+  rendreChoix();
+
+  const nbOps = Object.keys(r.ops).length;
+  const lignes = [
+    trouve.length ? `Trouvé : ${trouve.join(", ")}${r.total ? ` · total ${eur(r.total)}` : ""}` : (r.total ? `Total ${eur(r.total)}` : ""),
+    nbOps ? `${nbOps} opération${nbOps > 1 ? "s" : ""} reconnue${nbOps > 1 ? "s" : ""}` : `<span class="scan-alerte">Aucune opération reconnue : coche-les ci-dessous.</span>`,
+    manque.length ? `<span class="scan-alerte">À compléter : ${manque.join(", ")}</span>` : "",
+  ].filter(Boolean);
+  etatScan("Facture lue : vérifie les informations", lignes.join("<br>"));
+}
+
+// Visionneuse
+async function ouvrirFacture(id) {
+  let blob = null;
+  try { blob = await Photos.lire(id); } catch (e) { /* ignoré */ }
+  if (!blob) return toast("Photo introuvable sur cet appareil");
+  const img = $("#visio-img");
+  if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+  img.dataset.url = img.src = URL.createObjectURL(blob);
+  $("#visio-cadre").classList.remove("zoom");
+  $("#visionneuse").hidden = false;
+}
+$("#visio-fermer").addEventListener("click", () => { $("#visionneuse").hidden = true; });
+$("#visio-img").addEventListener("click", () => $("#visio-cadre").classList.toggle("zoom"));
 
 // ---------- Navigation ----------
 function allerOnglet(nom) {
@@ -521,11 +836,14 @@ $("#liste-visites").addEventListener("click", e => {
     $("#titre-form-interv").textContent = "Modifier l'entretien";
     $("#aide-choix").textContent = "En modification, une seule opération peut être cochée.";
     $("#i-annuler").hidden = false;
+    $("#scan-libelle").textContent = i.facture ? "Remplacer la photo de la facture" : "Joindre la facture";
+    $("#scan-aide").textContent = "La photo sera rattachée à cette opération.";
     allerOnglet("ajouter");
   }
+  if (b.dataset.facture) ouvrirFacture(b.dataset.facture);
   if (b.dataset.del && confirm("Supprimer cette opération de l'historique ?")) {
     v.interventions = v.interventions.filter(x => x.id !== b.dataset.del);
-    sauver(); rendre(); toast("Opération supprimée");
+    sauver(); rendre(); nettoyerPhotos(); toast("Opération supprimée");
   }
 });
 $("#filtre").addEventListener("input", rendreHistorique);
@@ -562,6 +880,7 @@ $("#btn-suppr-vehicule").addEventListener("click", () => {
   data.vehicules = data.vehicules.filter(x => x !== v);
   if (!data.vehicules.length) data.vehicules.push(vehiculeVide());
   changerVehicule(data.vehicules[0].id);
+  nettoyerPhotos();
   toast("Véhicule supprimé");
 });
 
@@ -610,12 +929,12 @@ $("#btn-import").addEventListener("change", async e => {
     const d = migrer(JSON.parse(await f.text()));
     if (!d) throw new Error("format");
     if (!confirm("Remplacer toutes les données actuelles par celles du fichier ?")) return;
-    data = d; sauver(); resetFormInterv(); rendre(); toast("Import réussi");
+    data = d; sauver(); resetFormInterv(); rendre(); nettoyerPhotos(); toast("Import réussi");
   } catch { toast("⚠️ Fichier invalide"); }
 });
 $("#btn-reset").addEventListener("click", () => {
   if (confirm("Effacer tous les véhicules et tout l'historique ? Pense à exporter avant.")) {
-    data = etatVide(); sauver(); resetFormInterv(); rendre(); toast("Données effacées");
+    data = etatVide(); sauver(); resetFormInterv(); rendre(); nettoyerPhotos(); toast("Données effacées");
   }
 });
 
@@ -636,7 +955,7 @@ const VERSION = document.querySelector('meta[name="app-version"]')?.content || "
 
 async function verifierMiseAJour() {
   if (location.protocol === "file:") return;           // ouverture en local : rien à vérifier
-  if (idEdition || selection().length) return;          // saisie en cours : on ne la perd pas
+  if (idEdition || selection().length || photoEnCours) return; // saisie en cours : on ne la perd pas
   try {
     const r = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
     if (!r.ok) return;

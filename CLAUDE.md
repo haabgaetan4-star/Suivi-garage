@@ -3,6 +3,9 @@
 Appli web statique (index.html, style.css, app.js) publiée par GitHub Pages depuis `main`.
 Données dans le localStorage du navigateur (clé `suivi-garage-v1`) : ne jamais changer
 cette clé ni le format des données sans migration, sinon l'utilisateur perd son historique.
+Photos de factures : IndexedDB `suivi-garage-photos` (store `factures`), référencées par
+`intervention.facture`. Lecture OCR : Tesseract.js 5.1.1 chargé à la demande depuis jsDelivr
+(versions figées dans `OCR` dans app.js ; `window.OCR_CHEMINS` permet de les servir en local pour les tests).
 
 ## Publication
 

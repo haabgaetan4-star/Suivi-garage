@@ -9,9 +9,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261121234314">
+  <meta name="app-version" content="20261121235508">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261121234314">
+  <link rel="stylesheet" href="style.css?v=20261121235508">
 </head>
 <body>
   <header class="entete">
@@ -63,6 +63,24 @@
 
     <!-- AJOUTER -->
     <section id="ajouter" class="panel">
+      <div class="carte scan" id="bloc-scan">
+        <label class="bouton principal plein bouton-scan">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg>
+          <span id="scan-libelle">Scanner une facture</span>
+          <input type="file" id="i-photo" accept="image/*" hidden>
+        </label>
+        <p class="petit muted" id="scan-aide">Prends la facture en photo : date, kilométrage, opérations et montants sont préremplis. Vérifie avant d'enregistrer.</p>
+      </div>
+      <div class="carte scan-etat" id="scan-etat" hidden>
+        <img id="scan-miniature" alt="Facture">
+        <div class="scan-texte">
+          <strong id="scan-titre">Lecture de la facture…</strong>
+          <div class="petit muted" id="scan-detail"></div>
+          <div class="progression" id="scan-progression"><i id="scan-barre"></i></div>
+        </div>
+        <button type="button" class="icone-btn suppr" id="scan-retirer" aria-label="Retirer la photo">✕</button>
+      </div>
+
       <form id="form-interv" novalidate>
         <h2 class="titre-section" id="titre-form-interv">Nouvel entretien</h2>
         <div class="carte">
@@ -167,7 +185,13 @@
     </button>
   </nav>
 
+  <div id="visionneuse" class="visionneuse" hidden>
+    <div class="visio-cadre" id="visio-cadre"><img id="visio-img" alt="Facture"></div>
+    <p class="visio-aide">Touche la facture pour l'agrandir</p>
+    <button type="button" class="visio-fermer" id="visio-fermer" aria-label="Fermer">✕</button>
+  </div>
+
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261121234314"></script>
+  <script src="app.js?v=20261121235508"></script>
 </body>
 </html>
