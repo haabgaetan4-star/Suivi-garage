@@ -396,5 +396,29 @@ document.addEventListener("focusin", e => {
   el.addEventListener("mouseup", ev => ev.preventDefault(), { once: true });
 });
 
+// ---------- Mise à jour automatique ----------
+// version.json est relu sans cache à l'ouverture et à chaque retour sur l'appli.
+// Si une nouvelle version est en ligne, la page se recharge avec une adresse
+// nouvelle (?v=…) pour que Safari ne resserve pas les anciens fichiers.
+const VERSION = document.querySelector('meta[name="app-version"]')?.content || "0";
+
+async function verifierMiseAJour() {
+  if (location.protocol === "file:") return;           // ouverture en local : rien à vérifier
+  if (idEdition || selection().length) return;          // saisie en cours : on ne la perd pas
+  try {
+    const r = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
+    if (!r.ok) return;
+    const { version } = await r.json();
+    if (!version || version === VERSION) return;
+    // garde-fou : une seule tentative par version, pour éviter une boucle de rechargement
+    let deja = null;
+    try { deja = sessionStorage.getItem("sg-maj"); sessionStorage.setItem("sg-maj", version); } catch (e) { /* ignoré */ }
+    if (deja === version) return;
+    location.replace(`${location.pathname}?v=${encodeURIComponent(version)}${location.hash}`);
+  } catch (e) { /* hors ligne : on garde la version actuelle */ }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") verifierMiseAJour(); });
+window.addEventListener("pageshow", verifierMiseAJour);
+
 resetFormInterv();
 rendre();
