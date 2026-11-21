@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suivi garage</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🚗 Suivi garage</h1>
+    <p id="resume-vehicule" class="muted">Aucun véhicule renseigné</p>
+  </header>
+
+  <nav>
+    <button class="tab active" data-tab="tableau">Tableau de bord</button>
+    <button class="tab" data-tab="historique">Historique</button>
+    <button class="tab" data-tab="plan">Plan d'entretien</button>
+    <button class="tab" data-tab="vehicule">Véhicule</button>
+  </nav>
+
+  <main>
+    <!-- TABLEAU DE BORD -->
+    <section id="tableau" class="panel active">
+      <div class="card">
+        <h2>Kilométrage actuel</h2>
+        <form id="form-km" class="inline">
+          <input type="number" id="km-actuel" min="0" step="1" placeholder="ex. 85 000" required>
+          <span>km</span>
+          <button type="submit">Mettre à jour</button>
+        </form>
+        <p id="km-date" class="muted"></p>
+      </div>
+
+      <div class="card">
+        <h2>Prochains entretiens</h2>
+        <ul id="liste-rappels" class="rappels"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Coûts</h2>
+        <div class="kpis">
+          <div class="kpi"><span class="kpi-val" id="kpi-total">0 €</span><span class="kpi-lib">Total</span></div>
+          <div class="kpi"><span class="kpi-val" id="kpi-annee">0 €</span><span class="kpi-lib">Cette année</span></div>
+          <div class="kpi"><span class="kpi-val" id="kpi-km">–</span><span class="kpi-lib">Coût / 1 000 km</span></div>
+        </div>
+        <table id="table-couts-type" class="compact"></table>
+      </div>
+    </section>
+
+    <!-- HISTORIQUE -->
+    <section id="historique" class="panel">
+      <div class="card">
+        <h2 id="titre-form-interv">Ajouter une intervention</h2>
+        <form id="form-interv" class="grid">
+          <input type="hidden" id="i-id">
+          <label>Date <input type="date" id="i-date" required></label>
+          <label>Kilométrage <input type="number" id="i-km" min="0" step="1" required></label>
+          <label>Type <input type="text" id="i-type" list="types" required placeholder="ex. Vidange"></label>
+          <label>Coût TTC (€) <input type="number" id="i-cout" min="0" step="0.01" value="0"></label>
+          <label>Garage <input type="text" id="i-garage" placeholder="facultatif"></label>
+          <label class="full">Détails <textarea id="i-desc" rows="2" placeholder="pièces, remarques…"></textarea></label>
+          <div class="full actions">
+            <button type="submit">Enregistrer</button>
+            <button type="button" id="i-annuler" class="secondary" hidden>Annuler</button>
+          </div>
+        </form>
+        <datalist id="types"></datalist>
+      </div>
+
+      <div class="card">
+        <h2>Interventions</h2>
+        <input type="search" id="filtre" placeholder="Filtrer…">
+        <div class="table-wrap">
+          <table id="table-interv">
+            <thead><tr><th>Date</th><th>Km</th><th>Type</th><th>Détails</th><th class="num">Coût</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="vide-interv" class="muted">Aucune intervention enregistrée.</p>
+      </div>
+    </section>
+
+    <!-- PLAN D'ENTRETIEN -->
+    <section id="plan" class="panel">
+      <div class="card">
+        <h2>Périodicités</h2>
+        <p class="muted">Indicatives : vérifie le carnet d'entretien de ton véhicule. Laisse un champ vide s'il ne s'applique pas.</p>
+        <div class="table-wrap">
+          <table id="table-plan">
+            <thead><tr><th>Opération</th><th>Tous les … km</th><th>Tous les … mois</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <form id="form-plan" class="inline wrap">
+          <input type="text" id="p-type" placeholder="Opération" required>
+          <input type="number" id="p-km" min="0" placeholder="km">
+          <input type="number" id="p-mois" min="0" placeholder="mois">
+          <button type="submit">Ajouter</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- VEHICULE -->
+    <section id="vehicule" class="panel">
+      <div class="card">
+        <h2>Mon véhicule</h2>
+        <form id="form-vehicule" class="grid">
+          <label>Marque <input type="text" id="v-marque"></label>
+          <label>Modèle <input type="text" id="v-modele"></label>
+          <label>Immatriculation <input type="text" id="v-immat"></label>
+          <label>Mise en circulation <input type="date" id="v-mec"></label>
+          <div class="full actions"><button type="submit">Enregistrer</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Sauvegarde</h2>
+        <p class="muted">Les données sont stockées dans ce navigateur uniquement. Exporte-les régulièrement.</p>
+        <div class="actions">
+          <button id="btn-export">Exporter (JSON)</button>
+          <button id="btn-csv" class="secondary">Exporter l'historique (CSV)</button>
+          <label class="button secondary">Importer <input type="file" id="btn-import" accept=".json,application/json" hidden></label>
+          <button id="btn-reset" class="danger">Tout effacer</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

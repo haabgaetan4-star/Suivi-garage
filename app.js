@@ -1,0 +1,304 @@
+"use strict";
+
+const CLE = "suivi-garage-v1";
+const SEUIL_KM = 1000;   // alerte « bientôt » à moins de 1 000 km
+const SEUIL_JOURS = 30;  // ou à moins de 30 jours
+
+const PLAN_DEFAUT = [
+  { type: "Vidange + filtre à huile", km: 15000, mois: 12 },
+  { type: "Filtre à air", km: 30000, mois: 24 },
+  { type: "Filtre d'habitacle", km: 15000, mois: 12 },
+  { type: "Filtre à carburant", km: 60000, mois: null },
+  { type: "Liquide de frein", km: null, mois: 24 },
+  { type: "Plaquettes de frein", km: 40000, mois: null },
+  { type: "Pneus", km: 40000, mois: null },
+  { type: "Courroie de distribution", km: 120000, mois: 72 },
+  { type: "Contrôle technique", km: null, mois: 24 },
+];
+
+// ---------- Données ----------
+let data = charger();
+
+function etatVide() {
+  return {
+    vehicule: { marque: "", modele: "", immat: "", mec: "" },
+    km: { valeur: null, date: null },
+    interventions: [],
+    plan: PLAN_DEFAUT.map(p => ({ id: uid(), ...p })),
+  };
+}
+function charger() {
+  try {
+    const brut = localStorage.getItem(CLE);
+    if (brut) return { ...etatVide(), ...JSON.parse(brut) };
+  } catch (e) { /* stockage indisponible */ }
+  return etatVide();
+}
+function sauver() {
+  try { localStorage.setItem(CLE, JSON.stringify(data)); }
+  catch (e) { toast("⚠️ Impossible d'enregistrer dans ce navigateur"); }
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// ---------- Utilitaires ----------
+const $ = s => document.querySelector(s);
+const eur = n => (n || 0).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+const kmFmt = n => n == null ? "–" : Math.round(n).toLocaleString("fr-FR") + " km";
+const dateFmt = d => d ? new Date(d + "T00:00:00").toLocaleDateString("fr-FR") : "–";
+const aujourdhui = () => new Date().toISOString().slice(0, 10);
+const norm = s => (s || "").trim().toLowerCase();
+function ajouterMois(iso, mois) {
+  const d = new Date(iso + "T00:00:00");
+  d.setMonth(d.getMonth() + mois);
+  return d;
+}
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+// Kilométrage de référence : le plus élevé entre la saisie manuelle et les interventions
+function kmCourant() {
+  const kms = data.interventions.map(i => i.km);
+  if (data.km.valeur != null) kms.push(data.km.valeur);
+  return kms.length ? Math.max(...kms) : null;
+}
+
+// ---------- Rappels ----------
+function calculerRappels() {
+  const km = kmCourant();
+  const today = new Date(aujourdhui() + "T00:00:00");
+  return data.plan.map(p => {
+    const faites = data.interventions
+      .filter(i => norm(i.type) === norm(p.type))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.km - a.km);
+    const der = faites[0];
+    const r = { plan: p, derniere: der, statut: "none", texte: "Jamais enregistré", score: Infinity };
+    if (!der) return r;
+
+    const echKm = p.km ? der.km + p.km : null;
+    const echDate = p.mois ? ajouterMois(der.date, p.mois) : null;
+    const resteKm = echKm != null && km != null ? echKm - km : null;
+    const resteJ = echDate ? Math.round((echDate - today) / 86400000) : null;
+
+    const parts = [];
+    if (echKm != null) parts.push(`à ${kmFmt(echKm)}` + (resteKm != null ? ` (${resteKm >= 0 ? "reste " + kmFmt(resteKm) : "dépassé de " + kmFmt(-resteKm)})` : ""));
+    if (echDate) parts.push(`le ${echDate.toLocaleDateString("fr-FR")}` + ` (${resteJ >= 0 ? "dans " + resteJ + " j" : "retard " + -resteJ + " j"})`);
+    r.texte = parts.join(" ou ") || "Pas de périodicité";
+
+    const enRetard = (resteKm != null && resteKm <= 0) || (resteJ != null && resteJ <= 0);
+    const bientot = (resteKm != null && resteKm <= SEUIL_KM) || (resteJ != null && resteJ <= SEUIL_JOURS);
+    r.statut = enRetard ? "late" : bientot ? "soon" : "ok";
+    // score pour trier : ce qui arrive le plus tôt en premier
+    r.score = Math.min(resteKm != null ? resteKm / 50 : Infinity, resteJ != null ? resteJ : Infinity);
+    return r;
+  });
+}
+
+// ---------- Rendu ----------
+const LIB_STATUT = { late: "En retard", soon: "Bientôt", ok: "À jour", none: "À renseigner" };
+const ORDRE_STATUT = { late: 0, soon: 1, ok: 2, none: 3 };
+
+function rendre() {
+  const v = data.vehicule;
+  const nom = [v.marque, v.modele].filter(Boolean).join(" ");
+  $("#resume-vehicule").textContent = nom
+    ? `${nom}${v.immat ? " · " + v.immat : ""} · ${kmFmt(kmCourant())}`
+    : "Renseigne ton véhicule dans l'onglet « Véhicule »";
+
+  // Km
+  $("#km-actuel").placeholder = kmCourant() != null ? kmCourant() : "ex. 85000";
+  $("#km-date").textContent = data.km.date ? `Dernier relevé : ${kmFmt(data.km.valeur)} le ${dateFmt(data.km.date)}` : "";
+
+  // Rappels
+  const rappels = calculerRappels().sort((a, b) => ORDRE_STATUT[a.statut] - ORDRE_STATUT[b.statut] || a.score - b.score);
+  $("#liste-rappels").innerHTML = rappels.length ? rappels.map(r => `
+    <li>
+      <div><strong>${esc(r.plan.type)}</strong><br>
+        <span class="muted">${r.derniere ? `Fait le ${dateFmt(r.derniere.date)} à ${kmFmt(r.derniere.km)} · prochain ${esc(r.texte)}` : esc(r.texte)}</span>
+      </div>
+      <span class="badge ${r.statut}">${LIB_STATUT[r.statut]}</span>
+    </li>`).join("") : `<li class="muted">Aucune opération dans le plan d'entretien.</li>`;
+
+  // Coûts
+  const ints = data.interventions;
+  const total = ints.reduce((s, i) => s + (i.cout || 0), 0);
+  const an = aujourdhui().slice(0, 4);
+  const totalAn = ints.filter(i => i.date.startsWith(an)).reduce((s, i) => s + (i.cout || 0), 0);
+  $("#kpi-total").textContent = eur(total);
+  $("#kpi-annee").textContent = eur(totalAn);
+  const kms = ints.map(i => i.km);
+  const parcourus = kms.length ? kmCourant() - Math.min(...kms) : 0;
+  $("#kpi-km").textContent = parcourus > 0 ? eur(total / parcourus * 1000) : "–";
+
+  const parType = {};
+  ints.forEach(i => { parType[i.type] = (parType[i.type] || 0) + (i.cout || 0); });
+  const lignes = Object.entries(parType).sort((a, b) => b[1] - a[1]);
+  $("#table-couts-type").innerHTML = lignes.length
+    ? `<thead><tr><th>Par type</th><th class="num">Montant</th><th class="num">%</th></tr></thead><tbody>` +
+      lignes.map(([t, m]) => `<tr><td>${esc(t)}</td><td class="num">${eur(m)}</td><td class="num">${(total ? m / total * 100 : 0).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</td></tr>`).join("") + "</tbody>"
+    : "";
+
+  // Historique
+  const f = norm($("#filtre").value);
+  const liste = [...ints]
+    .sort((a, b) => b.date.localeCompare(a.date) || b.km - a.km)
+    .filter(i => !f || [i.type, i.description, i.garage].some(x => norm(x).includes(f)));
+  $("#table-interv tbody").innerHTML = liste.map(i => `
+    <tr>
+      <td>${dateFmt(i.date)}</td>
+      <td class="num">${kmFmt(i.km)}</td>
+      <td>${esc(i.type)}</td>
+      <td>${esc(i.description)}${i.garage ? `<br><span class="muted">${esc(i.garage)}</span>` : ""}</td>
+      <td class="num">${eur(i.cout)}</td>
+      <td class="num"><button class="link" data-edit="${i.id}">Modifier</button><button class="link del" data-del="${i.id}">Suppr.</button></td>
+    </tr>`).join("");
+  $("#vide-interv").hidden = ints.length > 0;
+
+  // Types proposés
+  const types = new Set([...data.plan.map(p => p.type), ...ints.map(i => i.type), "Réparation", "Autre"]);
+  $("#types").innerHTML = [...types].map(t => `<option value="${esc(t)}">`).join("");
+
+  // Plan
+  $("#table-plan tbody").innerHTML = data.plan.map(p => `
+    <tr>
+      <td>${esc(p.type)}</td>
+      <td><input type="number" min="0" data-plan="${p.id}" data-champ="km" value="${p.km ?? ""}"></td>
+      <td><input type="number" min="0" data-plan="${p.id}" data-champ="mois" value="${p.mois ?? ""}"></td>
+      <td><button class="link del" data-delplan="${p.id}">Suppr.</button></td>
+    </tr>`).join("");
+
+  // Véhicule
+  $("#v-marque").value = v.marque; $("#v-modele").value = v.modele;
+  $("#v-immat").value = v.immat; $("#v-mec").value = v.mec;
+}
+
+// ---------- Événements ----------
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".tab, .panel").forEach(e => e.classList.remove("active"));
+  b.classList.add("active");
+  $("#" + b.dataset.tab).classList.add("active");
+}));
+
+$("#form-km").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = Number($("#km-actuel").value);
+  const ref = kmCourant();
+  if (ref != null && v < ref && !confirm(`Ce relevé (${kmFmt(v)}) est inférieur au kilométrage déjà connu (${kmFmt(ref)}). Continuer ?`)) return;
+  data.km = { valeur: v, date: aujourdhui() };
+  sauver(); $("#km-actuel").value = ""; rendre(); toast("Kilométrage mis à jour");
+});
+
+function resetFormInterv() {
+  $("#form-interv").reset();
+  $("#i-id").value = "";
+  $("#i-date").value = aujourdhui();
+  $("#i-cout").value = 0;
+  $("#titre-form-interv").textContent = "Ajouter une intervention";
+  $("#i-annuler").hidden = true;
+}
+
+$("#form-interv").addEventListener("submit", e => {
+  e.preventDefault();
+  const obj = {
+    id: $("#i-id").value || uid(),
+    date: $("#i-date").value,
+    km: Number($("#i-km").value),
+    type: $("#i-type").value.trim(),
+    cout: Number($("#i-cout").value) || 0,
+    garage: $("#i-garage").value.trim(),
+    description: $("#i-desc").value.trim(),
+  };
+  const idx = data.interventions.findIndex(i => i.id === obj.id);
+  if (idx >= 0) data.interventions[idx] = obj; else data.interventions.push(obj);
+  sauver(); resetFormInterv(); rendre();
+  toast(idx >= 0 ? "Intervention modifiée" : "Intervention ajoutée");
+});
+$("#i-annuler").addEventListener("click", resetFormInterv);
+
+$("#table-interv").addEventListener("click", e => {
+  const ed = e.target.dataset.edit, del = e.target.dataset.del;
+  if (ed) {
+    const i = data.interventions.find(x => x.id === ed);
+    $("#i-id").value = i.id; $("#i-date").value = i.date; $("#i-km").value = i.km;
+    $("#i-type").value = i.type; $("#i-cout").value = i.cout; $("#i-garage").value = i.garage || "";
+    $("#i-desc").value = i.description || "";
+    $("#titre-form-interv").textContent = "Modifier l'intervention";
+    $("#i-annuler").hidden = false;
+    $("#form-interv").scrollIntoView({ behavior: "smooth" });
+  }
+  if (del && confirm("Supprimer cette intervention ?")) {
+    data.interventions = data.interventions.filter(x => x.id !== del);
+    sauver(); rendre(); toast("Intervention supprimée");
+  }
+});
+$("#filtre").addEventListener("input", rendre);
+
+$("#table-plan").addEventListener("change", e => {
+  const id = e.target.dataset.plan;
+  if (!id) return;
+  const p = data.plan.find(x => x.id === id);
+  p[e.target.dataset.champ] = e.target.value === "" ? null : Number(e.target.value);
+  sauver(); rendre();
+});
+$("#table-plan").addEventListener("click", e => {
+  const id = e.target.dataset.delplan;
+  if (id && confirm("Retirer cette opération du plan ?")) {
+    data.plan = data.plan.filter(x => x.id !== id); sauver(); rendre();
+  }
+});
+$("#form-plan").addEventListener("submit", e => {
+  e.preventDefault();
+  const km = $("#p-km").value, mois = $("#p-mois").value;
+  data.plan.push({ id: uid(), type: $("#p-type").value.trim(), km: km ? Number(km) : null, mois: mois ? Number(mois) : null });
+  e.target.reset(); sauver(); rendre(); toast("Opération ajoutée");
+});
+
+$("#form-vehicule").addEventListener("submit", e => {
+  e.preventDefault();
+  data.vehicule = {
+    marque: $("#v-marque").value.trim(), modele: $("#v-modele").value.trim(),
+    immat: $("#v-immat").value.trim().toUpperCase(), mec: $("#v-mec").value,
+  };
+  sauver(); rendre(); toast("Véhicule enregistré");
+});
+
+function telecharger(nom, contenu, type) {
+  const url = URL.createObjectURL(new Blob([contenu], { type }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: nom });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+$("#btn-export").addEventListener("click", () =>
+  telecharger(`suivi-garage-${aujourdhui()}.json`, JSON.stringify(data, null, 2), "application/json"));
+$("#btn-csv").addEventListener("click", () => {
+  const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const lignes = [["Date", "Km", "Type", "Détails", "Garage", "Coût TTC"].map(q).join(";")];
+  [...data.interventions].sort((a, b) => a.date.localeCompare(b.date)).forEach(i =>
+    lignes.push([i.date, i.km, i.type, i.description, i.garage, String(i.cout).replace(".", ",")].map(q).join(";")));
+  telecharger(`historique-${aujourdhui()}.csv`, "﻿" + lignes.join("\r\n"), "text/csv");
+});
+$("#btn-import").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    const obj = JSON.parse(await f.text());
+    if (!Array.isArray(obj.interventions)) throw new Error();
+    if (!confirm("Remplacer les données actuelles par celles du fichier ?")) return;
+    data = { ...etatVide(), ...obj };
+    sauver(); rendre(); toast("Import réussi");
+  } catch { toast("⚠️ Fichier invalide"); }
+  e.target.value = "";
+});
+$("#btn-reset").addEventListener("click", () => {
+  if (confirm("Effacer toutes les données ? Pense à exporter avant.")) {
+    data = etatVide(); sauver(); rendre(); toast("Données effacées");
+  }
+});
+
+resetFormInterv();
+rendre();
