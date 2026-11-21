@@ -14,7 +14,7 @@
 
   <nav>
     <button class="tab active" data-tab="tableau">Tableau de bord</button>
-    <button class="tab" data-tab="historique">Historique</button>
+    <button class="tab" data-tab="historique">Ajouter un entretien</button>
     <button class="tab" data-tab="plan">Plan d'entretien</button>
     <button class="tab" data-tab="vehicule">Véhicule</button>
   </nav>
@@ -51,25 +51,29 @@
     <!-- HISTORIQUE -->
     <section id="historique" class="panel">
       <div class="card">
-        <h2 id="titre-form-interv">Ajouter une intervention</h2>
-        <form id="form-interv" class="grid">
-          <input type="hidden" id="i-id">
-          <label>Date <input type="date" id="i-date" required></label>
-          <label>Kilométrage <input type="number" id="i-km" min="0" step="1" required></label>
-          <label>Type <input type="text" id="i-type" list="types" required placeholder="ex. Vidange"></label>
-          <label>Coût TTC (€) <input type="number" id="i-cout" min="0" step="0.01" value="0"></label>
-          <label>Garage <input type="text" id="i-garage" placeholder="facultatif"></label>
-          <label class="full">Détails <textarea id="i-desc" rows="2" placeholder="pièces, remarques…"></textarea></label>
-          <div class="full actions">
+        <h2 id="titre-form-interv">Ajouter un entretien</h2>
+        <form id="form-interv">
+          <div class="grid">
+            <label>Date <input type="date" id="i-date" required></label>
+            <label>Kilométrage <input type="number" id="i-km" min="0" step="1" required></label>
+            <label>Garage <input type="text" id="i-garage" placeholder="facultatif"></label>
+          </div>
+
+          <h3>Entretiens réalisés</h3>
+          <p id="aide-choix" class="muted">Coche ce qui a été fait et indique le coût TTC de chaque opération.</p>
+          <ul id="choix-entretiens" class="choix"></ul>
+          <p id="i-total" class="total"></p>
+
+          <label class="bloc">Détails <textarea id="i-desc" rows="2" placeholder="pièces, remarques…"></textarea></label>
+          <div class="actions">
             <button type="submit">Enregistrer</button>
             <button type="button" id="i-annuler" class="secondary" hidden>Annuler</button>
           </div>
         </form>
-        <datalist id="types"></datalist>
       </div>
 
       <div class="card">
-        <h2>Interventions</h2>
+        <h2>Historique</h2>
         <input type="search" id="filtre" placeholder="Filtrer…">
         <div class="table-wrap">
           <table id="table-interv">
