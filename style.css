@@ -61,6 +61,7 @@ input, textarea, button, .button {
   font: inherit; color: inherit;
 }
 input, textarea {
+  font-size: 16px; /* en dessous de 16 px, Safari iOS zoome sur le champ */
   width: 100%; padding: 8px 10px;
   border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg);

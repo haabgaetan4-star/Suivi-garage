@@ -386,5 +386,15 @@ $("#btn-reset").addEventListener("click", () => {
   }
 });
 
+// Sélectionner le contenu d'un champ chiffré quand on clique dedans, pour le remplacer directement
+document.addEventListener("focusin", e => {
+  const el = e.target;
+  if (el.tagName !== "INPUT" || el.type !== "number") return;
+  el.select();
+  setTimeout(() => { if (document.activeElement === el) el.select(); }, 0); // iOS
+  // empêche le clic de replacer le curseur et d'annuler la sélection
+  el.addEventListener("mouseup", ev => ev.preventDefault(), { once: true });
+});
+
 resetFormInterv();
 rendre();
