@@ -2,136 +2,171 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f2f3f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1218" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Garage">
+  <meta name="app-version" content="20261121231408">
   <title>Suivi garage</title>
-  <meta name="app-version" content="20261121230120">
-  <link rel="stylesheet" href="style.css?v=20261121230120">
+  <link rel="stylesheet" href="style.css?v=20261121231408">
 </head>
 <body>
-  <header>
-    <h1>🚗 Suivi garage</h1>
-    <p id="resume-vehicule" class="muted">Aucun véhicule renseigné</p>
+  <header class="entete">
+    <label class="choix-vehicule">
+      <span class="sr">Véhicule affiché</span>
+      <select id="sel-vehicule"></select>
+    </label>
+    <p id="resume-vehicule" class="sous-titre"></p>
   </header>
 
-  <nav>
-    <button class="tab active" data-tab="tableau">Tableau de bord</button>
-    <button class="tab" data-tab="historique">Ajouter un entretien</button>
-    <button class="tab" data-tab="plan">Plan d'entretien</button>
-    <button class="tab" data-tab="vehicule">Véhicule</button>
-  </nav>
-
   <main>
-    <!-- TABLEAU DE BORD -->
-    <section id="tableau" class="panel active">
-      <div class="card">
-        <h2>Kilométrage actuel</h2>
-        <form id="form-km" class="inline">
-          <input type="number" id="km-actuel" min="0" step="1" placeholder="ex. 85 000" required>
-          <span>km</span>
-          <button type="submit">Mettre à jour</button>
-        </form>
-        <p id="km-date" class="muted"></p>
-      </div>
-
-      <div class="card">
-        <h2>Prochains entretiens</h2>
-        <ul id="liste-rappels" class="rappels"></ul>
-      </div>
-
-      <div class="card">
-        <h2>Coûts</h2>
-        <div class="kpis">
-          <div class="kpi"><span class="kpi-val" id="kpi-total">0 €</span><span class="kpi-lib">Total</span></div>
-          <div class="kpi"><span class="kpi-val" id="kpi-annee">0 €</span><span class="kpi-lib">Cette année</span></div>
-          <div class="kpi"><span class="kpi-val" id="kpi-km">–</span><span class="kpi-lib">Coût / 1 000 km</span></div>
+    <!-- ACCUEIL -->
+    <section id="accueil" class="panel active">
+      <div class="carte carte-km">
+        <div class="km-info">
+          <div class="etiquette">Kilométrage actuel</div>
+          <div class="km-grand" id="km-affiche">–</div>
+          <div class="petit muted" id="km-date"></div>
         </div>
-        <table id="table-couts-type" class="compact"></table>
+        <form id="form-km" class="km-form">
+          <input type="number" inputmode="numeric" id="km-actuel" min="0" step="1" placeholder="Nouveau relevé" required aria-label="Nouveau relevé kilométrique">
+          <button type="submit" class="principal">OK</button>
+        </form>
       </div>
+
+      <h2 class="titre-section">À prévoir</h2>
+      <div id="liste-aprevoir"></div>
+
+      <details class="carte repli" id="bloc-ajour">
+        <summary>À jour <span class="compteur" id="nb-ajour"></span></summary>
+        <div id="liste-ajour"></div>
+      </details>
+      <details class="carte repli" id="bloc-arenseigner">
+        <summary>Jamais enregistrés <span class="compteur" id="nb-arenseigner"></span></summary>
+        <p class="petit muted">Indique la dernière fois que l'opération a été faite pour activer son rappel.</p>
+        <div id="liste-arenseigner"></div>
+      </details>
+
+      <h2 class="titre-section">Coûts d'entretien</h2>
+      <div class="carte">
+        <div class="kpis">
+          <div class="kpi kpi-principal"><span class="kpi-lib">Total</span><span class="kpi-val" id="kpi-total">0 €</span></div>
+          <div class="kpi"><span class="kpi-lib">Cette année</span><span class="kpi-val" id="kpi-annee">0 €</span></div>
+          <div class="kpi"><span class="kpi-lib">Pour 1 000 km</span><span class="kpi-val" id="kpi-km">–</span></div>
+        </div>
+        <div id="couts-type" class="couts-type"></div>
+      </div>
+    </section>
+
+    <!-- AJOUTER -->
+    <section id="ajouter" class="panel">
+      <form id="form-interv" novalidate>
+        <h2 class="titre-section" id="titre-form-interv">Nouvel entretien</h2>
+        <div class="carte">
+          <div class="deux-col">
+            <label class="champ">Date<input type="date" id="i-date" required></label>
+            <label class="champ">Kilométrage<input type="number" inputmode="numeric" id="i-km" min="0" step="1" required></label>
+          </div>
+          <label class="champ">Garage<input type="text" id="i-garage" placeholder="Facultatif" autocomplete="off" list="garages"></label>
+          <datalist id="garages"></datalist>
+        </div>
+
+        <h2 class="titre-section">Qu'est-ce qui a été fait ?</h2>
+        <p id="aide-choix" class="aide muted">Touche une opération pour la cocher, puis indique son coût.</p>
+        <div id="choix-entretiens" class="choix"></div>
+
+        <div class="carte">
+          <label class="champ">Remarques<textarea id="i-desc" rows="2" placeholder="Pièces, références, observations…"></textarea></label>
+        </div>
+
+        <div class="barre-actions">
+          <button type="button" id="i-annuler" class="secondaire" hidden>Annuler</button>
+          <button type="submit" id="i-enregistrer" class="principal">Enregistrer</button>
+        </div>
+      </form>
     </section>
 
     <!-- HISTORIQUE -->
     <section id="historique" class="panel">
-      <div class="card">
-        <h2 id="titre-form-interv">Ajouter un entretien</h2>
-        <form id="form-interv">
-          <div class="grid">
-            <label>Date <input type="date" id="i-date" required></label>
-            <label>Kilométrage <input type="number" id="i-km" min="0" step="1" required></label>
-            <label>Garage <input type="text" id="i-garage" placeholder="facultatif"></label>
-          </div>
-
-          <h3>Entretiens réalisés</h3>
-          <p id="aide-choix" class="muted">Coche ce qui a été fait et indique le coût TTC de chaque opération.</p>
-          <ul id="choix-entretiens" class="choix"></ul>
-          <p id="i-total" class="total"></p>
-
-          <label class="bloc">Détails <textarea id="i-desc" rows="2" placeholder="pièces, remarques…"></textarea></label>
-          <div class="actions">
-            <button type="submit">Enregistrer</button>
-            <button type="button" id="i-annuler" class="secondary" hidden>Annuler</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="card">
-        <h2>Historique</h2>
-        <input type="search" id="filtre" placeholder="Filtrer…">
-        <div class="table-wrap">
-          <table id="table-interv">
-            <thead><tr><th>Date</th><th>Km</th><th>Type</th><th>Détails</th><th class="num">Coût</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <p id="vide-interv" class="muted">Aucune intervention enregistrée.</p>
-      </div>
+      <h2 class="titre-section">Historique</h2>
+      <input type="search" id="filtre" placeholder="Rechercher une opération, un garage…">
+      <div id="liste-visites"></div>
+      <p id="vide-interv" class="vide">Aucun entretien enregistré pour ce véhicule.</p>
     </section>
 
-    <!-- PLAN D'ENTRETIEN -->
-    <section id="plan" class="panel">
-      <div class="card">
-        <h2>Périodicités</h2>
-        <p class="muted">Indicatives : vérifie le carnet d'entretien de ton véhicule. Laisse un champ vide s'il ne s'applique pas.</p>
-        <div class="table-wrap">
-          <table id="table-plan">
-            <thead><tr><th>Opération</th><th>Tous les … km</th><th>Tous les … mois</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <form id="form-plan" class="inline wrap">
-          <input type="text" id="p-type" placeholder="Opération" required>
-          <input type="number" id="p-km" min="0" placeholder="km">
-          <input type="number" id="p-mois" min="0" placeholder="mois">
-          <button type="submit">Ajouter</button>
-        </form>
-      </div>
-    </section>
+    <!-- VEHICULES -->
+    <section id="vehicules" class="panel">
+      <h2 class="titre-section">Mes véhicules</h2>
+      <div id="liste-vehicules" class="carte liste-vehicules"></div>
+      <button type="button" id="btn-ajout-vehicule" class="secondaire plein">＋ Ajouter un véhicule</button>
 
-    <!-- VEHICULE -->
-    <section id="vehicule" class="panel">
-      <div class="card">
-        <h2>Mon véhicule</h2>
-        <form id="form-vehicule" class="grid">
-          <label>Marque <input type="text" id="v-marque"></label>
-          <label>Modèle <input type="text" id="v-modele"></label>
-          <label>Immatriculation <input type="text" id="v-immat"></label>
-          <label>Mise en circulation <input type="date" id="v-mec"></label>
-          <div class="full actions"><button type="submit">Enregistrer</button></div>
+      <h2 class="titre-section">Informations du véhicule</h2>
+      <form id="form-vehicule" class="carte">
+        <div class="deux-col">
+          <label class="champ">Marque<input type="text" id="v-marque" autocomplete="off"></label>
+          <label class="champ">Modèle<input type="text" id="v-modele" autocomplete="off"></label>
+        </div>
+        <div class="deux-col">
+          <label class="champ">Immatriculation<input type="text" id="v-immat" autocomplete="off" autocapitalize="characters"></label>
+          <label class="champ">Mise en circulation<input type="date" id="v-mec"></label>
+        </div>
+        <p class="petit muted">Enregistré automatiquement.</p>
+      </form>
+
+      <h2 class="titre-section">Plan d'entretien</h2>
+      <p class="aide muted">Périodicités indicatives : vérifie le carnet d'entretien du véhicule. Laisse vide ce qui ne s'applique pas.</p>
+      <div class="carte">
+        <div class="plan-ligne plan-entete"><span>Opération</span><span>km</span><span>mois</span><span></span></div>
+        <div id="liste-plan"></div>
+        <form id="form-plan" class="plan-ligne plan-ajout">
+          <input type="text" id="p-type" placeholder="Nouvelle opération" required>
+          <input type="number" inputmode="numeric" id="p-km" min="0" placeholder="km">
+          <input type="number" inputmode="numeric" id="p-mois" min="0" placeholder="mois">
+          <button type="submit" class="icone-btn ajout" title="Ajouter l'opération" aria-label="Ajouter l'opération">＋</button>
         </form>
       </div>
-      <div class="card">
-        <h2>Sauvegarde</h2>
-        <p class="muted">Les données sont stockées dans ce navigateur uniquement. Exporte-les régulièrement.</p>
-        <div class="actions">
-          <button id="btn-export">Exporter (JSON)</button>
-          <button id="btn-csv" class="secondary">Exporter l'historique (CSV)</button>
-          <label class="button secondary">Importer <input type="file" id="btn-import" accept=".json,application/json" hidden></label>
-          <button id="btn-reset" class="danger">Tout effacer</button>
+
+      <h2 class="titre-section">Sauvegarde</h2>
+      <div class="carte">
+        <p class="petit muted">Les données sont stockées dans ce navigateur uniquement. Exporte-les régulièrement.</p>
+        <div class="boutons">
+          <button type="button" id="btn-export" class="secondaire">Exporter tout (JSON)</button>
+          <button type="button" id="btn-csv" class="secondaire">Historique en CSV</button>
+          <label class="bouton secondaire">Importer<input type="file" id="btn-import" accept=".json,application/json" hidden></label>
         </div>
+      </div>
+
+      <h2 class="titre-section">Zone sensible</h2>
+      <div class="carte boutons">
+        <button type="button" id="btn-suppr-vehicule" class="danger">Supprimer ce véhicule</button>
+        <button type="button" id="btn-reset" class="danger">Tout effacer</button>
       </div>
     </section>
   </main>
 
-  <div id="toast" role="status"></div>
-  <script src="app.js?v=20261121230120"></script>
+  <nav class="barre-onglets" aria-label="Navigation">
+    <button class="onglet active" data-tab="accueil">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+      <span>Accueil</span>
+    </button>
+    <button class="onglet" data-tab="ajouter">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+      <span>Ajouter</span>
+    </button>
+    <button class="onglet" data-tab="historique">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+      <span>Historique</span>
+    </button>
+    <button class="onglet" data-tab="vehicules">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 11 1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11M3 17v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4zM5.5 17v2.5M18.5 17v2.5"/><circle cx="7.5" cy="14" r="1"/><circle cx="16.5" cy="14" r="1"/></svg>
+      <span>Véhicules</span>
+    </button>
+  </nav>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js?v=20261121231408"></script>
 </body>
 </html>
