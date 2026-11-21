@@ -17,6 +17,47 @@ const PLAN_DEFAUT = [
   { type: "Contrôle technique", km: null, mois: 24 },
 ];
 
+// Plans types appliqués automatiquement (une seule fois) au véhicule reconnu par sa marque et son modèle.
+// Les opérations ajoutées à la main par l'utilisateur sont conservées.
+const PLANS_TYPES = [
+  {
+    id: "bmw-320d-n47",
+    nom: "BMW 320d E90 (moteur N47)",
+    source: "Consensus de forums et blogs (pas de document BMW officiel trouvé) ; contrôle technique : Service-Public. Moteur à chaîne de distribution : pas de courroie.",
+    detecte: v => /bmw/i.test(v.infos.marque) && /320\s*d/i.test(v.infos.modele),
+    plan: [
+      { type: "Vidange + filtre à huile", km: 15000, mois: 12 },
+      { type: "Filtre d'habitacle", km: 30000, mois: 24 },
+      { type: "Filtre à air", km: 60000, mois: null },
+      { type: "Filtre à carburant", km: 60000, mois: null },
+      { type: "Liquide de frein", km: null, mois: 24 },
+      { type: "Plaquettes de frein", km: 40000, mois: null },
+      { type: "Pneus", km: 40000, mois: null },
+      { type: "Contrôle technique", km: null, mois: 24 },
+    ],
+    retirer: ["Courroie de distribution"],
+  },
+  {
+    id: "yamaha-mt09",
+    nom: "Yamaha MT-09",
+    source: "Intervalles européens d'après MotoVault (non vérifiés sur le manuel Yamaha) ; contrôle technique moto : Service-Public.",
+    detecte: v => /mt[\s-]?0?9\b/i.test(`${v.infos.marque} ${v.infos.modele}`),
+    plan: [
+      { type: "Vidange huile moteur", km: 10000, mois: 12 },
+      { type: "Filtre à huile", km: 20000, mois: 24 },
+      { type: "Chaîne : nettoyage, graissage, tension", km: 1000, mois: null },
+      { type: "Bougies", km: 20000, mois: null },
+      { type: "Filtre à air", km: 40000, mois: null },
+      { type: "Jeu aux soupapes", km: 40000, mois: null },
+      { type: "Liquide de frein", km: null, mois: 24 },
+      { type: "Liquide de refroidissement", km: null, mois: 36 },
+      { type: "Durites de frein", km: null, mois: 48 },
+      { type: "Contrôle technique", km: null, mois: 36 },
+    ],
+    retirer: PLAN_DEFAUT.map(p => p.type), // opérations « voiture » du plan par défaut
+  },
+];
+
 const ICONES = {
   crayon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
   poubelle: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
@@ -58,7 +99,7 @@ function toast(msg) {
 // Format : { format: 2, actif: id, vehicules: [{ id, infos, km, interventions, plan }] }
 const nouveauPlan = () => PLAN_DEFAUT.map(p => ({ id: uid(), ...p }));
 function vehiculeVide() {
-  return { id: uid(), infos: { marque: "", modele: "", immat: "", mec: "" }, km: { valeur: null, date: null }, interventions: [], plan: nouveauPlan() };
+  return { id: uid(), infos: { marque: "", modele: "", immat: "", mec: "" }, km: { valeur: null, date: null }, interventions: [], plan: nouveauPlan(), plansAppliques: [] };
 }
 function normaliserVehicule(v) {
   return {
@@ -67,7 +108,33 @@ function normaliserVehicule(v) {
     km: { valeur: null, date: null, ...(v.km || {}) },
     interventions: Array.isArray(v.interventions) ? v.interventions : [],
     plan: Array.isArray(v.plan) ? v.plan : nouveauPlan(),
+    plansAppliques: Array.isArray(v.plansAppliques) ? v.plansAppliques : [],
   };
+}
+
+// Met à jour le plan avec un plan type : les opérations de même nom gardent leur identifiant,
+// celles listées dans « retirer » disparaissent, les opérations personnalisées restent.
+function appliquerPlanType(v, pt) {
+  const memeType = (a, b) => norm(a) === norm(b);
+  const nouveaux = pt.plan.map(x => {
+    const existant = v.plan.find(p => memeType(p.type, x.type));
+    return { id: existant ? existant.id : uid(), type: x.type, km: x.km, mois: x.mois };
+  });
+  const gardes = v.plan.filter(p =>
+    !pt.plan.some(x => memeType(x.type, p.type)) && !pt.retirer.some(t => memeType(t, p.type)));
+  v.plan = [...nouveaux, ...gardes];
+  if (!v.plansAppliques.includes(pt.id)) v.plansAppliques.push(pt.id);
+}
+const planTypeDe = v => PLANS_TYPES.find(pt => pt.detecte(v));
+// Applique une seule fois le plan type d'un véhicule reconnu ; renvoie les noms des plans appliqués
+function appliquerPlansAuto() {
+  const appliques = [];
+  data.vehicules.forEach(v => {
+    const pt = planTypeDe(v);
+    if (pt && !v.plansAppliques.includes(pt.id)) { appliquerPlanType(v, pt); appliques.push(pt.nom); }
+  });
+  if (appliques.length) sauver();
+  return appliques;
 }
 // Accepte le format multi-véhicules et l'ancien format à un seul véhicule (exports compris)
 function migrer(obj) {
@@ -137,8 +204,11 @@ function calculerRappels(v = V()) {
       ? ` · <strong>dans ${duree(resteJ)}</strong>` : ` · <strong>en retard de ${duree(-resteJ)}</strong>`));
     r.lignes.push(`Dernière fois : ${dateFmt(der.date)} à ${kmFmt(der.km)}`);
 
+    // seuil « Bientôt » : 1 000 km / 30 jours, ramené à 20 % de l'intervalle pour les intervalles courts
+    const seuilKm = p.km ? Math.min(SEUIL_KM, p.km * 0.2) : SEUIL_KM;
+    const seuilJ = p.mois ? Math.min(SEUIL_JOURS, p.mois * 30.44 * 0.2) : SEUIL_JOURS;
     const enRetard = (resteKm != null && resteKm <= 0) || (resteJ != null && resteJ <= 0);
-    const bientot = (resteKm != null && resteKm <= SEUIL_KM) || (resteJ != null && resteJ <= SEUIL_JOURS);
+    const bientot = (resteKm != null && resteKm <= seuilKm) || (resteJ != null && resteJ <= seuilJ);
     r.statut = enRetard ? "late" : bientot ? "soon" : "ok";
     // tri : ce qui arrive le plus tôt d'abord (50 km ≈ 1 jour)
     r.score = Math.min(resteKm != null ? resteKm / 50 : Infinity, resteJ != null ? resteJ : Infinity);
@@ -271,6 +341,13 @@ function rendreVehicules() {
   // ne pas écraser un champ en cours de saisie
   const champs = { "#v-marque": v.infos.marque, "#v-modele": v.infos.modele, "#v-immat": v.infos.immat, "#v-mec": v.infos.mec };
   Object.entries(champs).forEach(([sel, val]) => { if (document.activeElement !== $(sel)) $(sel).value = val || ""; });
+
+  const pt = planTypeDe(v);
+  $("#plan-type").innerHTML = pt ? `<div class="carte plan-type">
+      <div class="plan-type-texte"><strong>Plan type : ${esc(pt.nom)}</strong>
+        <div class="petit muted">${esc(pt.source)}</div></div>
+      <button type="button" class="secondaire" data-plantype="${pt.id}">${v.plansAppliques.includes(pt.id) ? "Réappliquer" : "Appliquer"}</button>
+    </div>` : "";
 
   $("#liste-plan").innerHTML = v.plan.map(p => `
     <div class="plan-ligne">
@@ -465,7 +542,18 @@ $("#form-vehicule").addEventListener("change", () => {
     marque: $("#v-marque").value.trim(), modele: $("#v-modele").value.trim(),
     immat: $("#v-immat").value.trim().toUpperCase(), mec: $("#v-mec").value,
   };
-  sauver(); rendreEntete(); rendreVehicules(); toast("Enregistré");
+  sauver();
+  const appliques = appliquerPlansAuto();
+  if (appliques.length) { resetFormInterv(); rendre(); toast(`Plan d'entretien ${appliques.join(", ")} appliqué`); }
+  else { rendreEntete(); rendreVehicules(); toast("Enregistré"); }
+});
+$("#plan-type").addEventListener("click", e => {
+  const b = e.target.closest("[data-plantype]");
+  if (!b) return;
+  const pt = PLANS_TYPES.find(x => x.id === b.dataset.plantype);
+  if (!confirm(`Remettre les périodicités du plan type « ${pt.nom} » ? Tes opérations personnalisées sont conservées.`)) return;
+  appliquerPlanType(V(), pt);
+  sauver(); resetFormInterv(); rendre(); toast("Plan type appliqué");
 });
 $("#btn-suppr-vehicule").addEventListener("click", () => {
   const v = V(), idx = data.vehicules.indexOf(v);
@@ -564,5 +652,7 @@ async function verifierMiseAJour() {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") verifierMiseAJour(); });
 window.addEventListener("pageshow", verifierMiseAJour);
 
+const plansAuto = appliquerPlansAuto();
 resetFormInterv();
 rendre();
+if (plansAuto.length) toast(`Plan d'entretien ${plansAuto.join(", ")} appliqué`);

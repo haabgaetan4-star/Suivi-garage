@@ -284,6 +284,8 @@ button:active, .bouton:active { transform: scale(.97); }
 .plan-entete { border-top: none; font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding-top: 0; }
 .plan-nom { font-size: .92rem; overflow-wrap: anywhere; }
 .plan-ajout { margin-top: 4px; }
+.plan-type { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border-color: var(--accent); }
+.plan-type-texte { flex: 1 1 220px; min-width: 0; }
 
 /* ---------- Barre d'onglets ---------- */
 .barre-onglets {
