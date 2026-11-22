@@ -268,7 +268,7 @@ function rendreEntete() {
   // infos du véhicule affiché, sous le carrousel
   // marque, modèle et plaque (le kilométrage est déjà affiché juste en dessous)
   $("#vehicule-actif").innerHTML = `<div class="va-nom">${esc(nomVehicule(v, data.vehicules.indexOf(v)))}</div>`
-    + (v.infos.immat ? `<div class="va-plaque" aria-label="Immatriculation"><span>${esc(formatPlaque(v.infos.immat))}</span></div>` : "");
+    + (v.infos.immat ? `<div class="va-plaque" aria-label="Immatriculation">${esc(formatPlaque(v.infos.immat))}</div>` : "");
   if (Vue3D.autorise) Vue3D.demarrer();
   Vue3D.dessinerTout();
 }
