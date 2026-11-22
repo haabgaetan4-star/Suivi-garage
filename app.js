@@ -368,11 +368,9 @@ function rendreVehicules() {
   Object.entries(champs).forEach(([sel, val]) => { if (document.activeElement !== $(sel)) $(sel).value = val || ""; });
 
   const pt = planTypeDe(v);
-  $("#plan-type").innerHTML = pt ? `<div class="carte plan-type">
-      <div class="plan-type-texte"><strong>Plan type : ${esc(pt.nom)}</strong>
-        <div class="petit muted">${esc(pt.source)}</div></div>
-      <button type="button" class="secondaire" data-plantype="${pt.id}">${v.plansAppliques.includes(pt.id) ? "Réappliquer" : "Appliquer"}</button>
-    </div>` : "";
+  // simple ligne discrète : plan type appliqué et lien pour revenir à ses valeurs
+  $("#plan-type").innerHTML = pt ? `<p class="plan-type">Valeurs de départ : ${esc(pt.nom)} ·
+      <button type="button" class="lien" data-plantype="${pt.id}">${v.plansAppliques.includes(pt.id) ? "rétablir" : "appliquer"}</button></p>` : "";
 
   $("#liste-plan").innerHTML = v.plan.map(p => `
     <div class="plan-ligne">
@@ -1469,9 +1467,9 @@ $("#plan-type").addEventListener("click", e => {
   const b = e.target.closest("[data-plantype]");
   if (!b) return;
   const pt = PLANS_TYPES.find(x => x.id === b.dataset.plantype);
-  if (!confirm(`Remettre les périodicités du plan type « ${pt.nom} » ? Tes opérations personnalisées sont conservées.`)) return;
+  if (!confirm(`Remettre les périodicités de départ « ${pt.nom} » ? Tes opérations personnalisées sont conservées.\n\nSources : ${pt.source}`)) return;
   appliquerPlanType(V(), pt);
-  sauver(); resetFormInterv(); rendre(); toast("Plan type appliqué");
+  sauver(); resetFormInterv(); rendre(); toast("Valeurs de départ rétablies");
 });
 $("#btn-suppr-vehicule").addEventListener("click", () => {
   const v = V(), idx = data.vehicules.indexOf(v);
