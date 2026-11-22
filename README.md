@@ -6,7 +6,7 @@ Application web pour suivre l'entretien de sa voiture, sans installation ni comp
 
 - **Tableau de bord** : kilométrage actuel, prochains entretiens avec un statut (en retard, bientôt, à jour), coûts (total, année en cours, coût pour 1 000 km, répartition par type).
 - **Ajouter** : on coche une ou plusieurs opérations (ou « Autre »), avec le coût de chacune ; date, kilométrage, garage et remarques sont communs. Le bouton « Fait » d'un rappel ouvre ce formulaire avec l'opération déjà cochée.
-- **Scan de facture** : photo de la facture lue sur le téléphone (Tesseract.js, gratuit, sans compte) ; date, kilométrage, garage, opérations et montants sont préremplis, à vérifier avant d'enregistrer. La photo est conservée sur l'appareil (IndexedDB) et consultable depuis l'historique ; elle n'est pas incluse dans l'export JSON.
+- **Scan de facture** : photo ou PDF de la facture. Un PDF numérique est lu directement (pdf.js), une photo ou un PDF scanné est lu par OCR sur le téléphone (Tesseract.js, gratuit, sans compte) ; date, kilométrage, garage, opérations et montants sont préremplis, à vérifier avant d'enregistrer. La photo ou le PDF est conservé sur l'appareil (IndexedDB) et consultable depuis l'historique ; elle n'est pas incluse dans l'export JSON.
 - **Historique** : entretiens regroupés par visite, modifiables et supprimables, avec recherche.
 - **Plusieurs véhicules** : chacun a son kilométrage, son historique et son plan d'entretien ; on passe de l'un à l'autre depuis le titre en haut de l'écran.
 - **Plan d'entretien** : périodicités en km et/ou en mois, modifiables (valeurs par défaut indicatives).

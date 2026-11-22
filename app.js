@@ -428,8 +428,8 @@ function resetFormInterv() {
   $("#aide-choix").textContent = "Touche une opération pour la cocher, puis indique son coût.";
   $("#i-annuler").hidden = true;
   retirerPhoto();
-  $("#scan-libelle").textContent = "Scanner une facture";
-  $("#scan-aide").textContent = "Prends la facture en photo : date, kilométrage, opérations et montants sont préremplis. Vérifie avant d'enregistrer.";
+  $("#scan-libelle").textContent = "Scanner une facture (photo ou PDF)";
+  $("#scan-aide").textContent = "Prends la facture en photo ou choisis le PDF du garage : date, kilométrage, opérations et montants sont préremplis. Vérifie avant d'enregistrer.";
   rendreChoix();
 }
 
@@ -513,9 +513,10 @@ function chargerImage(fichier) {
   });
 }
 function redimensionner(img, cote) {
-  const r = Math.min(1, cote / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height; // image ou canvas
+  const r = Math.min(1, cote / Math.max(w, h));
   const c = document.createElement("canvas");
-  c.width = Math.round(img.naturalWidth * r); c.height = Math.round(img.naturalHeight * r);
+  c.width = Math.round(w * r); c.height = Math.round(h * r);
   c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
   return c;
 }
@@ -538,6 +539,8 @@ const OCR = window.OCR_CHEMINS || {
   workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
   corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1",
   langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/fra@1.0.0/4.0.0_best_int",
+  pdfScript: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js",
+  pdfWorker: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js",
 };
 function chargerTesseract() {
   if (window.Tesseract) return Promise.resolve();
@@ -701,39 +704,124 @@ function etatScan(titre, detail, progression) {
   if (progression != null) $("#scan-barre").style.width = Math.round(progression * 100) + "%";
 }
 
+// --- PDF (pdf.js, chargé à la demande) ---
+const estPdf = f => f.type === "application/pdf" || /\.pdf$/i.test(f.name || "");
+function chargerPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve();
+  return new Promise((ok, ko) => {
+    const s = document.createElement("script");
+    s.src = OCR.pdfScript;
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = OCR.pdfWorker; ok(); };
+    s.onerror = () => ko(new Error("chargement"));
+    document.head.appendChild(s);
+  });
+}
+async function ouvrirPdf(blob) {
+  await chargerPdfJs();
+  return pdfjsLib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+}
+async function rendrePage(pdf, n, largeur) {
+  const page = await pdf.getPage(n);
+  const vp = page.getViewport({ scale: largeur / page.getViewport({ scale: 1 }).width });
+  const c = document.createElement("canvas");
+  c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  return c;
+}
+// Texte d'un PDF numérique : les morceaux de texte sont regroupés en lignes selon leur hauteur
+async function textePdf(pdf, maxPages = 5) {
+  const lignes = [];
+  for (let n = 1; n <= Math.min(pdf.numPages, maxPages); n++) {
+    const items = (await (await pdf.getPage(n)).getTextContent()).items.filter(it => it.str && it.str.trim());
+    const groupes = [];
+    items.forEach(it => {
+      const x = it.transform[4], y = it.transform[5], h = Math.abs(it.transform[3]) || 10;
+      let g = groupes.find(gr => Math.abs(gr.y - y) < h * 0.5);
+      if (!g) groupes.push(g = { y, items: [] });
+      g.items.push({ x, str: it.str });
+    });
+    groupes.sort((a, b) => b.y - a.y).forEach(g =>
+      lignes.push(g.items.sort((a, b) => a.x - b.x).map(i => i.str).join(" ").replace(/\s+/g, " ").trim()));
+  }
+  return lignes.join("\n");
+}
+
+// Plusieurs lectures OCR : on garde la meilleure et on complète date/km/garage avec les autres
+function combinerAnalyses(textes) {
+  const r = meilleureAnalyse(textes, V().plan);
+  const autres = textes.map(t => analyserFacture(t, V().plan));
+  r.date = r.date || autres.map(x => x.date).find(Boolean) || null;
+  r.km = r.km || autres.map(x => x.km).find(Boolean) || null;
+  r.garage = r.garage || autres.map(x => x.garage).find(Boolean) || null;
+  return r;
+}
+function afficherScan(url) {
+  if (url) $("#scan-miniature").src = url; else $("#scan-miniature").removeAttribute("src");
+  $("#bloc-scan").hidden = true;
+  $("#scan-etat").hidden = false;
+}
+const messageErreur = err => err && err.message === "chargement"
+  ? "Pas de connexion pour charger l'outil de lecture." : "Le texte n'a pas pu être lu.";
+
 $("#i-photo").addEventListener("change", async e => {
   const fichier = e.target.files[0];
   e.target.value = "";
   if (!fichier) return;
+  if (estPdf(fichier)) return traiterPdf(fichier);
+
   let img;
   try { img = await chargerImage(fichier); } catch { return toast("⚠️ Image illisible"); }
-
   const blob = await new Promise(ok => redimensionner(img, 1600).toBlob(ok, "image/jpeg", 0.72));
   retirerPhoto();
-  photoEnCours = { id: "f-" + uid(), blob, url: URL.createObjectURL(blob) };
-  $("#scan-miniature").src = photoEnCours.url;
-  $("#bloc-scan").hidden = true;
-  $("#scan-etat").hidden = false;
-
+  const enCours = photoEnCours = { id: "f-" + uid(), blob, url: URL.createObjectURL(blob) };
+  afficherScan(enCours.url);
   if (idEdition) { etatScan("Facture jointe", "Elle sera rattachée à cette opération à l'enregistrement."); return; }
 
-  const enCours = photoEnCours;
   etatScan("Lecture de la facture…", "Préparation…", 0);
   try {
     const textes = await lireTexte(preparerPourLecture(img), (p, msg) => { if (photoEnCours === enCours) etatScan("Lecture de la facture…", msg, p); });
     if (photoEnCours !== enCours) return; // photo retirée pendant la lecture
-    const r = meilleureAnalyse(textes, V().plan);
-    // date ou km absents d'une lecture : on les reprend de l'autre
-    const autres = textes.map(t => analyserFacture(t, V().plan));
-    r.date = r.date || autres.map(x => x.date).find(Boolean) || null;
-    r.km = r.km || autres.map(x => x.km).find(Boolean) || null;
-    r.garage = r.garage || autres.map(x => x.garage).find(Boolean) || null;
-    preremplir(r);
+    preremplir(combinerAnalyses(textes));
   } catch (err) {
     if (photoEnCours !== enCours) return;
-    etatScan("Lecture impossible", `<span class="scan-alerte">${err.message === "chargement" ? "Pas de connexion pour charger l'outil de lecture." : "Le texte n'a pas pu être lu."}</span> La photo reste jointe : remplis le formulaire à la main.`);
+    etatScan("Lecture impossible", `<span class="scan-alerte">${messageErreur(err)}</span> La photo reste jointe : remplis le formulaire à la main.`);
   }
 });
+
+async function traiterPdf(fichier) {
+  if (fichier.size > 15e6) return toast("⚠️ PDF trop lourd (15 Mo maximum)");
+  retirerPhoto();
+  const blob = fichier.type === "application/pdf" ? fichier : new Blob([fichier], { type: "application/pdf" });
+  const enCours = photoEnCours = { id: "f-" + uid(), blob, url: "" };
+  afficherScan(null);
+  etatScan("Ouverture du PDF…", "", 0.05);
+  let pdf;
+  try { pdf = await ouvrirPdf(blob); }
+  catch (err) {
+    if (photoEnCours !== enCours) return;
+    retirerPhoto();
+    return toast(err.message === "chargement" ? "⚠️ Pas de connexion pour ouvrir le PDF" : "⚠️ PDF illisible");
+  }
+  if (photoEnCours !== enCours) return;
+  try { enCours.url = (await rendrePage(pdf, 1, 240)).toDataURL("image/jpeg", 0.7); $("#scan-miniature").src = enCours.url; } catch (e) { /* pas d'aperçu */ }
+  if (idEdition) { etatScan("Facture PDF jointe", "Elle sera rattachée à cette opération à l'enregistrement."); return; }
+
+  try {
+    const texte = await textePdf(pdf);
+    if (photoEnCours !== enCours) return;
+    if (texte.replace(/\s/g, "").length >= 40) { preremplir(analyserFacture(texte, V().plan)); return; }
+    // PDF scanné (image sans texte) : lecture de la première page comme une photo
+    const page = await rendrePage(pdf, 1, 2200);
+    const textes = await lireTexte(preparerPourLecture(page), (p, msg) => { if (photoEnCours === enCours) etatScan("Lecture du PDF scanné…", msg, p); });
+    if (photoEnCours !== enCours) return;
+    preremplir(combinerAnalyses(textes));
+  } catch (err) {
+    if (photoEnCours !== enCours) return;
+    etatScan("Lecture impossible", `<span class="scan-alerte">${messageErreur(err)}</span> Le PDF reste joint : remplis le formulaire à la main.`);
+  }
+}
 $("#scan-retirer").addEventListener("click", retirerPhoto);
 
 function preremplir(r) {
@@ -756,19 +844,42 @@ function preremplir(r) {
   etatScan("Facture lue : vérifie les informations", lignes.join("<br>"));
 }
 
-// Visionneuse
+// Visionneuse (photo ou PDF multi-pages)
+function viderVisionneuse() {
+  const c = $("#visio-cadre");
+  if (c.dataset.url) { URL.revokeObjectURL(c.dataset.url); delete c.dataset.url; }
+  c.innerHTML = "";
+  c.classList.remove("zoom", "pages");
+}
 async function ouvrirFacture(id) {
   let blob = null;
   try { blob = await Photos.lire(id); } catch (e) { /* ignoré */ }
-  if (!blob) return toast("Photo introuvable sur cet appareil");
-  const img = $("#visio-img");
-  if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
-  img.dataset.url = img.src = URL.createObjectURL(blob);
-  $("#visio-cadre").classList.remove("zoom");
+  if (!blob) return toast("Facture introuvable sur cet appareil");
+  viderVisionneuse();
+  const cadre = $("#visio-cadre");
   $("#visionneuse").hidden = false;
+  if (blob.type === "application/pdf") {
+    cadre.classList.add("pages");
+    cadre.innerHTML = '<p class="visio-chargement">Ouverture du PDF…</p>';
+    try {
+      const pdf = await ouvrirPdf(blob);
+      cadre.innerHTML = "";
+      for (let n = 1; n <= Math.min(pdf.numPages, 10); n++) {
+        const img = new Image();
+        img.alt = `Page ${n}`;
+        img.src = (await rendrePage(pdf, n, 1400)).toDataURL("image/jpeg", 0.85);
+        cadre.appendChild(img);
+      }
+    } catch (e) {
+      cadre.innerHTML = '<p class="visio-chargement">Impossible d\'afficher le PDF (connexion ?).</p>';
+    }
+  } else {
+    cadre.dataset.url = URL.createObjectURL(blob);
+    cadre.innerHTML = `<img src="${cadre.dataset.url}" alt="Facture">`;
+  }
 }
-$("#visio-fermer").addEventListener("click", () => { $("#visionneuse").hidden = true; });
-$("#visio-img").addEventListener("click", () => $("#visio-cadre").classList.toggle("zoom"));
+$("#visio-fermer").addEventListener("click", () => { $("#visionneuse").hidden = true; viderVisionneuse(); });
+$("#visio-cadre").addEventListener("click", e => { if (e.target.tagName === "IMG") $("#visio-cadre").classList.toggle("zoom"); });
 
 // ---------- Navigation ----------
 function allerOnglet(nom) {
@@ -836,8 +947,8 @@ $("#liste-visites").addEventListener("click", e => {
     $("#titre-form-interv").textContent = "Modifier l'entretien";
     $("#aide-choix").textContent = "En modification, une seule opération peut être cochée.";
     $("#i-annuler").hidden = false;
-    $("#scan-libelle").textContent = i.facture ? "Remplacer la photo de la facture" : "Joindre la facture";
-    $("#scan-aide").textContent = "La photo sera rattachée à cette opération.";
+    $("#scan-libelle").textContent = i.facture ? "Remplacer la facture (photo ou PDF)" : "Joindre la facture (photo ou PDF)";
+    $("#scan-aide").textContent = "La facture sera rattachée à cette opération.";
     allerOnglet("ajouter");
   }
   if (b.dataset.facture) ouvrirFacture(b.dataset.facture);

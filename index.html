@@ -9,9 +9,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261121235508">
+  <meta name="app-version" content="20261122102019">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261121235508">
+  <link rel="stylesheet" href="style.css?v=20261122102019">
 </head>
 <body>
   <header class="entete">
@@ -66,10 +66,10 @@
       <div class="carte scan" id="bloc-scan">
         <label class="bouton principal plein bouton-scan">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg>
-          <span id="scan-libelle">Scanner une facture</span>
-          <input type="file" id="i-photo" accept="image/*" hidden>
+          <span id="scan-libelle">Scanner une facture (photo ou PDF)</span>
+          <input type="file" id="i-photo" accept="image/*,application/pdf,.pdf" hidden>
         </label>
-        <p class="petit muted" id="scan-aide">Prends la facture en photo : date, kilométrage, opérations et montants sont préremplis. Vérifie avant d'enregistrer.</p>
+        <p class="petit muted" id="scan-aide">Prends la facture en photo ou choisis le PDF du garage : date, kilométrage, opérations et montants sont préremplis. Vérifie avant d'enregistrer.</p>
       </div>
       <div class="carte scan-etat" id="scan-etat" hidden>
         <img id="scan-miniature" alt="Facture">
@@ -186,12 +186,12 @@
   </nav>
 
   <div id="visionneuse" class="visionneuse" hidden>
-    <div class="visio-cadre" id="visio-cadre"><img id="visio-img" alt="Facture"></div>
+    <div class="visio-cadre" id="visio-cadre"></div>
     <p class="visio-aide">Touche la facture pour l'agrandir</p>
     <button type="button" class="visio-fermer" id="visio-fermer" aria-label="Fermer">✕</button>
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261121235508"></script>
+  <script src="app.js?v=20261122102019"></script>
 </body>
 </html>

@@ -263,6 +263,10 @@ button:active, .bouton:active { transform: scale(.97); }
 .visio-cadre img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; }
 .visio-cadre.zoom { display: block; }
 .visio-cadre.zoom img { max-width: none; max-height: none; width: 220%; cursor: zoom-out; }
+.visio-cadre.pages { display: block; padding: 0 12px; }
+.visio-cadre.pages img { display: block; width: 100%; max-height: none; margin: 0 auto 12px; background: #fff; }
+.visio-cadre.pages.zoom img { width: 220%; }
+.visio-chargement { color: #ccc; text-align: center; padding: 40px 16px; }
 .visio-aide { color: #bbb; text-align: center; font-size: .8rem; margin: 8px 0 12px; }
 .visio-fermer {
   position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px;
