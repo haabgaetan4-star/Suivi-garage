@@ -1,19 +1,21 @@
 :root {
-  /* Direction artistique : fond noir, accent orange (thème sombre uniquement) */
+  /* Direction artistique : noir chaud, halo brun-rouge, liseré cuivré (palette tirée de l'image de référence) */
   color-scheme: dark;
-  --bg: #000000;
-  --carte: #121212;
-  --texte: #f2f2f2;
-  --muted: #9a9a9a;
-  --bord: #262626;
-  --accent: #ff9f0a;        /* liens, textes accentués */
-  --accent-plein: #ff9500;  /* fond des boutons principaux */
-  --sur-accent: #000000;    /* texte sur fond orange */
-  --accent-doux: #2b1b05;
-  --ok: #4ade80;   --ok-doux: #0f2416;
-  --soon: #facc15; --soon-doux: #2a2408;
-  --late: #f87171; --late-doux: #2e1313;
-  --none: #9a9a9a; --none-doux: #1e1e1e;
+  --bg: #0f0c0c;
+  --carte: #1a1413;
+  --texte: #f6ede7;
+  --muted: #a8958f;
+  --bord: #2f2320;
+  --accent: #f8893a;        /* liens, textes accentués */
+  --accent-plein: #e76728;  /* fond des boutons principaux */
+  --degrade: linear-gradient(135deg, #f8a04a 0%, #e76728 55%, #c43e1b 100%);
+  --sur-accent: #170905;    /* texte sur fond orange */
+  --accent-doux: #2e170f;
+  --lueur: 0 0 0 1px rgba(248, 137, 58, .35), 0 0 18px rgba(231, 103, 40, .28);
+  --ok: #6fd394;   --ok-doux: #11231a;
+  --soon: #f1c467; --soon-doux: #2b2210;
+  --late: #ef5b4c; --late-doux: #2e1311;
+  --none: #a8958f; --none-doux: #241c1a;
   --ombre: none;
   --rayon: 16px;
   --nav: 64px;
@@ -29,6 +31,13 @@ body {
   color: var(--texte);
   line-height: 1.4;
   padding-bottom: calc(var(--nav) + env(safe-area-inset-bottom) + 24px);
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 110% -10%, rgba(74, 31, 20, .95) 0%, rgba(56, 23, 16, .55) 35%, rgba(15, 12, 12, 0) 70%),
+    radial-gradient(90% 50% at 100% 110%, rgba(43, 15, 11, .8) 0%, rgba(15, 12, 12, 0) 70%),
+    var(--bg);
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .muted { color: var(--muted); }
@@ -53,7 +62,7 @@ body {
   opacity: .62; transition: opacity .2s, border-color .2s, transform .2s;
 }
 .vcarte:active { transform: scale(.98); }
-.vcarte.actif { opacity: 1; border-color: var(--accent); }
+.vcarte.actif { opacity: 1; border-color: var(--accent); box-shadow: var(--lueur); }
 .vcarte-scene { position: relative; height: 92px; margin: 0 -6px; }
 .vcarte-scene svg {
   position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%, -50%);
@@ -157,7 +166,7 @@ button, .bouton {
   font-weight: 600; cursor: pointer; transition: transform .08s, opacity .15s;
 }
 button:active, .bouton:active { transform: scale(.97); }
-.principal { background: var(--accent-plein); color: var(--sur-accent); }
+.principal { background: var(--degrade); color: var(--sur-accent); }
 .secondaire { background: var(--accent-doux); color: var(--accent); }
 .danger { background: var(--late-doux); color: var(--late); }
 .plein { width: 100%; }
