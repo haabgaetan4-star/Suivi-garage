@@ -9,13 +9,14 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261122132029">
+  <meta name="app-version" content="20261122132654">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261122132029">
+  <link rel="stylesheet" href="style.css?v=20261122132654">
 </head>
 <body>
   <header class="entete">
     <div class="garage" id="garage" aria-label="Mes véhicules"></div>
+    <div class="vehicule-actif" id="vehicule-actif"></div>
   </header>
 
   <main>
@@ -134,21 +135,6 @@
         <p class="petit muted">Enregistré automatiquement.</p>
       </form>
 
-      <h2 class="titre-section">Photo du véhicule</h2>
-      <div class="carte photo-vehicule">
-        <div class="apercu-vehicule" id="apercu-vehicule"></div>
-        <p class="petit muted" id="photo-aide">Ajoute une photo de ton véhicule pour l'afficher en haut de l'écran. Elle reste sur ce téléphone.</p>
-        <div class="boutons">
-          <label class="bouton secondaire" id="v-photo-libelle">Choisir une photo<input type="file" id="v-photo" accept="image/*" hidden></label>
-          <button type="button" class="danger" id="v-photo-retirer" hidden>Retirer la photo</button>
-        </div>
-        <div class="cadrage" id="cadrage" hidden>
-          <label class="champ">Position horizontale<input type="range" id="c-x" min="0" max="100" step="1"></label>
-          <label class="champ">Position verticale<input type="range" id="c-y" min="0" max="100" step="1"></label>
-          <label class="champ">Zoom<input type="range" id="c-z" min="100" max="300" step="5"></label>
-        </div>
-      </div>
-
       <h2 class="titre-section">Modèle 3D</h2>
       <div class="carte">
         <p class="petit muted" id="m3d-aide">Importe un modèle 3D (.glb) de ton véhicule pour l'afficher en haut de l'écran. Il reste sur ce téléphone.</p>
@@ -156,7 +142,6 @@
           <label class="bouton secondaire" id="m3d-libelle">Importer un modèle (.glb)<input type="file" id="v-m3d" hidden></label>
           <button type="button" class="danger" id="v-m3d-retirer" hidden>Retirer le modèle</button>
         </div>
-        <label class="champ" id="bloc-affichage" hidden>Affichage dans le carrousel<select id="v-affichage"><option value="3d">Modèle 3D</option><option value="photo">Photo</option></select></label>
       </div>
 
       <h2 class="titre-section">Plan d'entretien</h2>
@@ -217,6 +202,6 @@
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261122132029"></script>
+  <script src="app.js?v=20261122132654"></script>
 </body>
 </html>

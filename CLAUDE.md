@@ -4,8 +4,9 @@ Appli web statique (index.html, style.css, app.js) publiée par GitHub Pages dep
 Données dans le localStorage du navigateur (clé `suivi-garage-v1`) : ne jamais changer
 cette clé ni le format des données sans migration, sinon l'utilisateur perd son historique.
 Photos de factures et des véhicules : IndexedDB `suivi-garage-photos` (store `factures`), référencées par
-`intervention.facture`, `vehicule.infos.photo` (cadrage dans `infos.cadrage`) et `vehicule.infos.modele3d`
-(modèle .glb importé, affiché si `infos.affichage` n'est pas "photo" ; matériau nommé « peinture » recoloré).
+`intervention.facture` et `vehicule.infos.modele3d` (modèle .glb importé, matériau nommé « peinture » recoloré).
+Le carrousel n'affiche que des modèles 3D ; d'anciennes photos de véhicules (`infos.photo`) peuvent rester
+stockées : ne pas les effacer, elles ne sont plus affichées.
 Les modèles 3D importés (licence incertaine) restent sur l'appareil, jamais dans le dépôt. Ne jamais publier les photos
 du propriétaire dans le dépôt (plaques d'immatriculation visibles). Lecture : texte des PDF avec pdf.js 3.11.174 (build UMD), OCR des photos et PDF scannés avec
 Tesseract.js 5.1.1, tous deux chargés à la demande depuis jsDelivr
