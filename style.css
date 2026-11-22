@@ -348,6 +348,24 @@ button:active, .bouton:active { transform: scale(.97); }
 .plan-entete { border-top: none; font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding-top: 0; }
 .plan-nom { font-size: .92rem; overflow-wrap: anywhere; }
 .plan-ajout { margin-top: 4px; }
+/* Fiche véhicule compacte : une ligne par information, valeur modifiable à droite */
+.fiche { padding: 0 14px; }
+.fiche .ligne {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 46px; border-top: 1px solid var(--bord); font-size: .92rem; color: var(--muted); cursor: text; white-space: nowrap;
+}
+.fiche .ligne:first-child { border-top: none; }
+.fiche .ligne input, .fiche .ligne select {
+  flex: 1 1 auto; min-width: 0; max-width: 62%; min-height: 0; padding: 10px 0;
+  border: none; border-radius: 0; background: transparent; color: var(--texte);
+  text-align: right; font-size: 16px; font-weight: 600;
+}
+.fiche .ligne input:focus, .fiche .ligne select:focus { outline: none; color: var(--accent); }
+.fiche .ligne input::placeholder { color: var(--muted); font-weight: 400; }
+.fiche .ligne input[type=date] { display: block; }
+.fiche .ligne input[type=date]::-webkit-date-and-time-value { text-align: right; }
+.fiche .ligne select { text-align-last: right; cursor: pointer; }
+.fiche .ligne input[type=color] { flex: 0 0 44px; max-width: 44px; height: 26px; padding: 0; border-radius: 6px; }
 .plan-type { font-size: .78rem; color: var(--muted); margin: -4px 4px 10px; }
 button.lien { display: inline; min-height: 0; padding: 0; border-radius: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; }
 

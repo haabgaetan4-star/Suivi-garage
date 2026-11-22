@@ -8,9 +8,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261122143045">
+  <meta name="app-version" content="20261122144133">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261122143045">
+  <link rel="stylesheet" href="style.css?v=20261122144133">
 </head>
 <body>
   <header class="entete">
@@ -115,20 +115,13 @@
     <section id="vehicules" class="panel">
 
       <h2 class="titre-section">Informations du véhicule</h2>
-      <form id="form-vehicule" class="carte">
-        <div class="deux-col">
-          <label class="champ">Marque<input type="text" id="v-marque" autocomplete="off"></label>
-          <label class="champ">Modèle<input type="text" id="v-modele" autocomplete="off"></label>
-        </div>
-        <div class="deux-col">
-          <label class="champ">Immatriculation<input type="text" id="v-immat" autocomplete="off" autocapitalize="characters"></label>
-          <label class="champ">Mise en circulation<input type="date" id="v-mec"></label>
-        </div>
-        <div class="deux-col">
-          <label class="champ">Type<select id="v-type"><option value="voiture">Voiture</option><option value="moto">Moto</option></select></label>
-          <label class="champ">Couleur<input type="color" id="v-couleur"></label>
-        </div>
-        <p class="petit muted">Enregistré automatiquement.</p>
+      <form id="form-vehicule" class="carte fiche">
+        <label class="ligne">Marque<input type="text" id="v-marque" autocomplete="off" placeholder="À renseigner"></label>
+        <label class="ligne">Modèle<input type="text" id="v-modele" autocomplete="off" placeholder="À renseigner"></label>
+        <label class="ligne">Immatriculation<input type="text" id="v-immat" autocomplete="off" autocapitalize="characters" placeholder="AB-123-CD"></label>
+        <label class="ligne">Mise en circulation<input type="date" id="v-mec"></label>
+        <label class="ligne">Type<select id="v-type"><option value="voiture">Voiture</option><option value="moto">Moto</option></select></label>
+        <label class="ligne">Couleur<input type="color" id="v-couleur"></label>
       </form>
 
       <h2 class="titre-section">Plan d'entretien</h2>
@@ -198,6 +191,6 @@
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261122143045"></script>
+  <script src="app.js?v=20261122144133"></script>
 </body>
 </html>
