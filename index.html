@@ -8,9 +8,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261122142326">
+  <meta name="app-version" content="20261122142754">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261122142326">
+  <link rel="stylesheet" href="style.css?v=20261122142754">
 </head>
 <body>
   <header class="entete">
@@ -131,15 +131,6 @@
         <p class="petit muted">Enregistré automatiquement.</p>
       </form>
 
-      <h2 class="titre-section">Modèle 3D</h2>
-      <div class="carte">
-        <p class="petit muted" id="m3d-aide">Importe un modèle 3D (.glb) de ton véhicule pour l'afficher en haut de l'écran. Il reste sur ce téléphone.</p>
-        <div class="boutons">
-          <label class="bouton secondaire" id="m3d-libelle">Importer un modèle (.glb)<input type="file" id="v-m3d" hidden></label>
-          <button type="button" class="danger" id="v-m3d-retirer" hidden>Retirer le modèle</button>
-        </div>
-      </div>
-
       <h2 class="titre-section">Plan d'entretien</h2>
       <p class="aide muted">Périodicités indicatives : vérifie le carnet d'entretien du véhicule. Laisse vide ce qui ne s'applique pas.</p>
       <div id="plan-type"></div>
@@ -152,6 +143,15 @@
           <input type="number" inputmode="numeric" id="p-mois" min="0" placeholder="mois">
           <button type="submit" class="icone-btn ajout" title="Ajouter l'opération" aria-label="Ajouter l'opération">＋</button>
         </form>
+      </div>
+
+      <h2 class="titre-section">Modèle 3D</h2>
+      <div class="carte">
+        <p class="petit muted" id="m3d-aide">Importe un modèle 3D (.glb) de ton véhicule pour l'afficher en haut de l'écran. Il reste sur ce téléphone.</p>
+        <div class="boutons">
+          <label class="bouton secondaire" id="m3d-libelle">Importer un modèle (.glb)<input type="file" id="v-m3d" hidden></label>
+          <button type="button" class="danger" id="v-m3d-retirer" hidden>Retirer le modèle</button>
+        </div>
       </div>
 
       <h2 class="titre-section">Sauvegarde</h2>
@@ -198,6 +198,6 @@
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261122142326"></script>
+  <script src="app.js?v=20261122142754"></script>
 </body>
 </html>

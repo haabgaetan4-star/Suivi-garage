@@ -22,7 +22,7 @@ const PLAN_DEFAUT = [
 const PLANS_TYPES = [
   {
     id: "bmw-320d-n47",
-    nom: "BMW 320d E90 (moteur N47)",
+    nom: "BMW 320d E90/E91 (moteur N47)",
     source: "Consensus de forums et blogs (pas de document BMW officiel trouvé) ; contrôle technique : Service-Public. Moteur à chaîne de distribution : pas de courroie.",
     detecte: v => /bmw/i.test(v.infos.marque) && /320\s*d/i.test(v.infos.modele),
     plan: [
