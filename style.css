@@ -1,7 +1,7 @@
 :root {
-  /* Direction artistique : noir chaud, halo brun-rouge, liseré cuivré (palette tirée de l'image de référence) */
+  /* Direction artistique : fond noir, liseré cuivré (palette tirée de l'image de référence) */
   color-scheme: dark;
-  --bg: #0f0c0c;
+  --bg: #000000;
   --carte: #1a1413;
   --texte: #f6ede7;
   --muted: #a8958f;
@@ -31,13 +31,6 @@ body {
   color: var(--texte);
   line-height: 1.4;
   padding-bottom: calc(var(--nav) + env(safe-area-inset-bottom) + 24px);
-}
-body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background:
-    radial-gradient(120% 70% at 110% -10%, rgba(74, 31, 20, .95) 0%, rgba(56, 23, 16, .55) 35%, rgba(15, 12, 12, 0) 70%),
-    radial-gradient(90% 50% at 100% 110%, rgba(43, 15, 11, .8) 0%, rgba(15, 12, 12, 0) 70%),
-    var(--bg);
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .muted { color: var(--muted); }
