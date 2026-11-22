@@ -9,17 +9,13 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261122102019">
+  <meta name="app-version" content="20261122110250">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261122102019">
+  <link rel="stylesheet" href="style.css?v=20261122110250">
 </head>
 <body>
   <header class="entete">
-    <label class="choix-vehicule">
-      <span class="sr">Véhicule affiché</span>
-      <select id="sel-vehicule"></select>
-    </label>
-    <p id="resume-vehicule" class="sous-titre"></p>
+    <div class="garage" id="garage" aria-label="Mes véhicules"></div>
   </header>
 
   <main>
@@ -131,6 +127,10 @@
           <label class="champ">Immatriculation<input type="text" id="v-immat" autocomplete="off" autocapitalize="characters"></label>
           <label class="champ">Mise en circulation<input type="date" id="v-mec"></label>
         </div>
+        <div class="deux-col">
+          <label class="champ">Type<select id="v-type"><option value="voiture">Voiture</option><option value="moto">Moto</option></select></label>
+          <label class="champ">Couleur<input type="color" id="v-couleur"></label>
+        </div>
         <p class="petit muted">Enregistré automatiquement.</p>
       </form>
 
@@ -192,6 +192,6 @@
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261122102019"></script>
+  <script src="app.js?v=20261122110250"></script>
 </body>
 </html>

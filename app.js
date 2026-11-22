@@ -238,14 +238,32 @@ function rendre() {
   rendreVehicules();
 }
 
+// Type et couleur : choisis dans la fiche véhicule, sinon déduits de la marque et du modèle
+const MOTOS = /\b(mt[\s-]?\d{2}|moto|motocyclette|yamaha|kawasaki|ducati|ktm|triumph|harley|aprilia|husqvarna|royal enfield|z\d{3,4}|cbr?\s?\d{3,4}|gsx|r\s?1250|gs\s?\d{3,4})\b/i;
+const typeVehicule = v => v.infos.type || (MOTOS.test(`${v.infos.marque} ${v.infos.modele}`) ? "moto" : "voiture");
+const couleurVehicule = v => v.infos.couleur || (typeVehicule(v) === "moto" ? "#2f55b0" : "#a3acb8");
+const SILHOUETTES = {
+  voiture: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 11 1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11M3 17v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4zM5.5 17v2.5M18.5 17v2.5"/><circle cx="7.5" cy="14" r="1"/><circle cx="16.5" cy="14" r="1"/></svg>',
+  moto: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="16" r="3.5"/><circle cx="18.5" cy="16" r="3.5"/><path d="M5.5 16 9 10h5l2.5 6M14 10l1.5-3H18M9 10 8 8H6"/></svg>',
+};
+
 function rendreEntete() {
-  const v = V();
-  $("#sel-vehicule").innerHTML = data.vehicules.map((x, i) =>
-    `<option value="${x.id}" ${x.id === v.id ? "selected" : ""}>${esc(nomVehicule(x, i))}</option>`).join("")
-    + `<option value="__nouveau">＋ Ajouter un véhicule…</option>`;
-  const km = kmCourant();
-  const morceaux = [v.infos.immat, km != null ? kmFmt(km) : null].filter(Boolean);
-  $("#resume-vehicule").textContent = morceaux.length ? morceaux.join(" · ") : "Renseigne ce véhicule dans l'onglet Véhicules";
+  const v = V(), garage = $("#garage"), defil = garage.scrollLeft;
+  garage.innerHTML = data.vehicules.map((x, i) => {
+    const km = kmCourant(x);
+    const sous = [x.infos.immat, km != null ? kmFmt(km) : null].filter(Boolean).join(" · ") || "Infos à compléter";
+    return `<button type="button" class="vcarte ${x.id === v.id ? "actif" : ""}" data-vehicule="${x.id}" aria-pressed="${x.id === v.id}">
+      <div class="vcarte-scene"><canvas></canvas>${SILHOUETTES[typeVehicule(x)]}</div>
+      <div class="vcarte-nom">${esc(nomVehicule(x, i))}</div>
+      <div class="vcarte-sous">${esc(sous)}</div>
+    </button>`;
+  }).join("") + `<button type="button" class="vcarte ajout" data-ajout-vehicule><span>＋</span><span>Ajouter</span></button>`;
+  garage.scrollLeft = defil;
+  Vue3D.dessinerTout();
+}
+function centrerVehiculeActif(doux) {
+  const c = $(`.vcarte[data-vehicule="${data.actif}"]`);
+  if (c) c.scrollIntoView({ behavior: doux ? "smooth" : "auto", inline: "center", block: "nearest" });
 }
 
 function rendreAccueil() {
@@ -342,7 +360,8 @@ function rendreVehicules() {
   }).join("");
 
   // ne pas écraser un champ en cours de saisie
-  const champs = { "#v-marque": v.infos.marque, "#v-modele": v.infos.modele, "#v-immat": v.infos.immat, "#v-mec": v.infos.mec };
+  const champs = { "#v-marque": v.infos.marque, "#v-modele": v.infos.modele, "#v-immat": v.infos.immat, "#v-mec": v.infos.mec,
+    "#v-type": typeVehicule(v), "#v-couleur": couleurVehicule(v) };
   Object.entries(champs).forEach(([sel, val]) => { if (document.activeElement !== $(sel)) $(sel).value = val || ""; });
 
   const pt = planTypeDe(v);
@@ -541,6 +560,7 @@ const OCR = window.OCR_CHEMINS || {
   langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/fra@1.0.0/4.0.0_best_int",
   pdfScript: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js",
   pdfWorker: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js",
+  three: "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
 };
 function chargerTesseract() {
   if (window.Tesseract) return Promise.resolve();
@@ -881,6 +901,202 @@ async function ouvrirFacture(id) {
 $("#visio-fermer").addEventListener("click", () => { $("#visionneuse").hidden = true; viderVisionneuse(); });
 $("#visio-cadre").addEventListener("click", e => { if (e.target.tagName === "IMG") $("#visio-cadre").classList.toggle("zoom"); });
 
+// ---------- Modèles 3D des véhicules (Three.js, chargé à la demande) ----------
+// Modèles génériques construits à partir de formes simples : une berline et une moto roadster,
+// à la couleur du véhicule. Un seul contexte WebGL : chaque scène est rendue puis copiée
+// dans le canvas 2D de sa carte (évite la limite de contextes WebGL de Safari).
+function chargerScript(src) {
+  return new Promise((ok, ko) => {
+    const s = document.createElement("script");
+    s.src = src; s.onload = ok; s.onerror = () => ko(new Error("chargement"));
+    document.head.appendChild(s);
+  });
+}
+
+function construireVoiture(T, couleur) {
+  const g = new T.Group();
+  const peinture = new T.MeshStandardMaterial({ color: couleur, metalness: 0.55, roughness: 0.3 });
+  const vitre = new T.MeshStandardMaterial({ color: 0x141b26, metalness: 0.9, roughness: 0.08 });
+  const noir = new T.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.85 });
+  const chrome = new T.MeshStandardMaterial({ color: 0xc9ced6, metalness: 0.95, roughness: 0.22 });
+  const extruder = (pts, prof, mat, biseau) => {
+    const f = new T.Shape();
+    pts.forEach(([x, y], i) => (i ? f.lineTo(x, y) : f.moveTo(x, y)));
+    f.closePath();
+    const geo = new T.ExtrudeGeometry(f, { depth: prof, bevelEnabled: true, bevelThickness: biseau, bevelSize: biseau, bevelSegments: 4, curveSegments: 8 });
+    geo.translate(0, 0, -prof / 2);
+    return new T.Mesh(geo, mat);
+  };
+  // caisse : profil latéral extrudé (capot long, coffre court, façon berline)
+  g.add(extruder([[-2.2, 0.34], [2.15, 0.34], [2.3, 0.5], [2.27, 0.74], [1.3, 0.92], [-1.45, 0.98], [-2.18, 0.94], [-2.3, 0.62]], 1.58, peinture, 0.1));
+  // habitacle couleur carrosserie, vitres légèrement en saillie sur les côtés, le pare-brise et la lunette
+  g.add(extruder([[-1.5, 0.95], [-0.92, 1.5], [0.28, 1.52], [1.1, 0.96]], 1.26, peinture, 0.07));
+  g.add(extruder([[-1.6, 0.97], [-1.0, 1.43], [0.33, 1.45], [1.2, 0.95]], 1.36, vitre, 0.04));
+  // bas de caisse et boucliers sombres
+  const bas = new T.Mesh(new T.BoxGeometry(4.5, 0.12, 1.72), noir); bas.position.y = 0.3; g.add(bas);
+  // roues
+  [[1.4, 0.84], [1.4, -0.84], [-1.42, 0.84], [-1.42, -0.84]].forEach(([x, z]) => {
+    const roue = new T.Group();
+    const pneu = new T.Mesh(new T.CylinderGeometry(0.38, 0.38, 0.28, 32), noir);
+    const jante = new T.Mesh(new T.CylinderGeometry(0.25, 0.25, 0.3, 24), chrome);
+    roue.add(pneu, jante);
+    roue.rotation.x = Math.PI / 2;
+    roue.position.set(x, 0.38, z);
+    g.add(roue);
+  });
+  // phares, calandre, feux
+  const phare = new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0xcfe0ff, emissiveIntensity: 0.9 });
+  const feu = new T.MeshStandardMaterial({ color: 0xff3030, emissive: 0xb00000, emissiveIntensity: 1 });
+  [0.58, -0.58].forEach(z => {
+    const p = new T.Mesh(new T.BoxGeometry(0.1, 0.1, 0.36), phare); p.position.set(2.33, 0.68, z); g.add(p);
+    const f = new T.Mesh(new T.BoxGeometry(0.1, 0.1, 0.4), feu); f.position.set(-2.36, 0.8, z); g.add(f);
+    const cal = new T.Mesh(new T.BoxGeometry(0.08, 0.16, 0.2), noir); cal.position.set(2.34, 0.55, z * 0.3); g.add(cal);
+  });
+  // rétroviseurs
+  [0.92, -0.92].forEach(z => { const r = new T.Mesh(new T.BoxGeometry(0.16, 0.1, 0.14), peinture); r.position.set(0.95, 1.02, z); g.add(r); });
+  return g;
+}
+
+function construireMoto(T, couleur) {
+  const g = new T.Group();
+  const peinture = new T.MeshStandardMaterial({ color: couleur, metalness: 0.5, roughness: 0.3 });
+  const metal = new T.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.9, roughness: 0.28 });
+  const fonte = new T.MeshStandardMaterial({ color: 0x3b3e45, metalness: 0.6, roughness: 0.45 });
+  const noir = new T.MeshStandardMaterial({ color: 0x17181c, roughness: 0.7 });
+  const or = new T.MeshStandardMaterial({ color: 0xc9a24a, metalness: 0.85, roughness: 0.3 });
+  const poutre = (a, b, r, mat) => {
+    const d = new T.Vector3(b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0));
+    const m = new T.Mesh(new T.CylinderGeometry(r, r, d.length(), 12), mat);
+    m.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, ((a[2] || 0) + (b[2] || 0)) / 2);
+    m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize());
+    return m;
+  };
+  const roue = x => {
+    const r = new T.Group();
+    r.add(new T.Mesh(new T.TorusGeometry(0.33, 0.09, 16, 36), noir));
+    r.add(new T.Mesh(new T.TorusGeometry(0.24, 0.025, 8, 32), metal));
+    for (let i = 0; i < 6; i++) {
+      const b = new T.Mesh(new T.BoxGeometry(0.03, 0.24, 0.03), metal);
+      b.position.y = 0.12;
+      const pivot = new T.Group(); pivot.add(b); pivot.rotation.z = i * Math.PI / 3; r.add(pivot);
+    }
+    const moyeu = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.18, 12), metal);
+    moyeu.rotation.x = Math.PI / 2; r.add(moyeu);
+    r.position.set(x, 0.42, 0);
+    return r;
+  };
+  g.add(roue(0.8), roue(-0.76));
+  const disque = new T.Mesh(new T.CylinderGeometry(0.18, 0.18, 0.015, 28), metal);
+  disque.rotation.x = Math.PI / 2; disque.position.set(0.8, 0.42, 0.1); g.add(disque);
+  // fourche, cadre, bras oscillant
+  [0.09, -0.09].forEach(z => {
+    g.add(poutre([0.8, 0.42, z], [0.57, 1.16, z], 0.035, or));
+    g.add(poutre([0.55, 1.08, z * 1.3], [-0.22, 0.8, z * 1.3], 0.04, metal));
+    g.add(poutre([-0.76, 0.42, z * 1.1], [-0.08, 0.52, z * 1.1], 0.035, metal));
+  });
+  // moteur, radiateur, échappement court
+  const moteur = new T.Mesh(new T.BoxGeometry(0.52, 0.42, 0.34), fonte); moteur.position.set(0.03, 0.6, 0); g.add(moteur);
+  const radiateur = new T.Mesh(new T.BoxGeometry(0.05, 0.32, 0.38), noir); radiateur.position.set(0.42, 0.74, 0); g.add(radiateur);
+  g.add(poutre([0.0, 0.36, 0.16], [-0.42, 0.44, 0.2], 0.07, metal));
+  // réservoir, selle, coque arrière
+  const reservoir = new T.Mesh(new T.SphereGeometry(1, 24, 16), peinture);
+  reservoir.scale.set(0.36, 0.2, 0.25); reservoir.position.set(0.2, 1.06, 0); g.add(reservoir);
+  [0.2, -0.2].forEach(z => { const ecope = new T.Mesh(new T.BoxGeometry(0.3, 0.16, 0.04), peinture); ecope.position.set(0.36, 0.9, z); ecope.rotation.z = -0.35; g.add(ecope); });
+  const selle = new T.Mesh(new T.BoxGeometry(0.56, 0.08, 0.26), noir); selle.position.set(-0.3, 1.02, 0); selle.rotation.z = 0.08; g.add(selle);
+  const coque = new T.Mesh(new T.BoxGeometry(0.42, 0.08, 0.18), peinture); coque.position.set(-0.72, 1.12, 0); coque.rotation.z = 0.3; g.add(coque);
+  // phare, guidon
+  const phare = new T.Mesh(new T.BoxGeometry(0.1, 0.12, 0.2), new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0xcfe0ff, emissiveIntensity: 0.9 }));
+  phare.position.set(0.68, 1.08, 0); g.add(phare);
+  g.add(poutre([0.52, 1.25, -0.36], [0.52, 1.25, 0.36], 0.022, noir));
+  g.scale.setScalar(1.75);
+  g.position.x = 0.05;
+  return g;
+}
+
+function ombreSol(T) {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const ctx = c.getContext("2d"), grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+  grad.addColorStop(0, "rgba(0,0,0,0.55)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
+  const m = new T.Mesh(new T.PlaneGeometry(5.6, 2.6), new T.MeshBasicMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = 0.01;
+  return m;
+}
+
+const Vue3D = {
+  pret: false, echec: false, chargement: false, renderer: null, modeles: new Map(), raf: 0, dernier: 0,
+  async demarrer() {
+    if (this.pret || this.echec || this.chargement) return;
+    this.chargement = true;
+    try {
+      if (!window.THREE) await chargerScript(OCR.three);
+      this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      this.renderer.outputEncoding = THREE.sRGBEncoding;
+      this.renderer.setPixelRatio(1);
+    } catch (e) { this.echec = true; return; } // hors ligne ou WebGL indisponible : silhouettes
+    this.pret = true;
+    this.dessinerTout();
+    this.boucle();
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boucle(); });
+  },
+  scene(v) {
+    const T = THREE, type = typeVehicule(v), couleur = couleurVehicule(v), cle = `${type}|${couleur}`;
+    let m = this.modeles.get(v.id);
+    if (m && m.cle === cle) return m;
+    const scene = new T.Scene();
+    scene.add(new T.HemisphereLight(0xffffff, 0x3a3f4a, 0.95));
+    const soleil = new T.DirectionalLight(0xffffff, 1.15); soleil.position.set(4, 8, 6); scene.add(soleil);
+    const contre = new T.DirectionalLight(0x9db8ff, 0.55); contre.position.set(-6, 3, -4); scene.add(contre);
+    const pivot = new T.Group();
+    pivot.add(type === "moto" ? construireMoto(T, couleur) : construireVoiture(T, couleur));
+    pivot.add(ombreSol(T));
+    scene.add(pivot);
+    const camera = new T.PerspectiveCamera(26, 2, 0.1, 100);
+    camera.position.set(4.9, 2.2, 5.9);
+    camera.lookAt(0, 0.72, 0);
+    m = { cle, scene, camera, pivot, angle: m ? m.angle : -0.6 };
+    pivot.rotation.y = m.angle;
+    this.modeles.set(v.id, m);
+    return m;
+  },
+  dessiner(v) {
+    const canvas = document.querySelector(`.vcarte[data-vehicule="${v.id}"] canvas`);
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    if (!r.width) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    const m = this.scene(v), R = this.renderer;
+    m.camera.aspect = w / h; m.camera.updateProjectionMatrix();
+    if (R.domElement.width !== w || R.domElement.height !== h) R.setSize(w, h, false);
+    R.render(m.scene, m.camera);
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(R.domElement, 0, 0);
+    canvas.classList.add("pret");
+  },
+  dessinerTout() {
+    if (!this.pret) return;
+    data.vehicules.forEach(v => this.dessiner(v));
+    for (const id of this.modeles.keys()) if (!data.vehicules.some(v => v.id === id)) this.modeles.delete(id);
+  },
+  // seul le véhicule affiché tourne, à environ 30 images/s, et rien ne tourne quand l'appli est en arrière-plan
+  boucle() {
+    cancelAnimationFrame(this.raf);
+    const tick = t => {
+      if (document.hidden || !this.pret) return;
+      if (t - this.dernier > 33) {
+        const dt = this.dernier ? Math.min(t - this.dernier, 100) : 33;
+        this.dernier = t;
+        const v = V(), m = this.modeles.get(v.id);
+        if (m) { m.angle += dt * 0.0004; m.pivot.rotation.y = m.angle; this.dessiner(v); }
+      }
+      this.raf = requestAnimationFrame(tick);
+    };
+    this.raf = requestAnimationFrame(tick);
+  },
+};
+
 // ---------- Navigation ----------
 function allerOnglet(nom) {
   document.querySelectorAll(".onglet, .panel").forEach(e => e.classList.remove("active"));
@@ -904,9 +1120,11 @@ function ajouterVehicule() {
 }
 
 // ---------- Événements ----------
-$("#sel-vehicule").addEventListener("change", e => {
-  if (e.target.value === "__nouveau") ajouterVehicule();
-  else changerVehicule(e.target.value);
+$("#garage").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.hasAttribute("data-ajout-vehicule")) return ajouterVehicule();
+  if (b.dataset.vehicule !== data.actif) { changerVehicule(b.dataset.vehicule); centrerVehiculeActif(true); }
 });
 
 // Boutons « Fait » / « Saisir » des rappels
@@ -962,14 +1180,21 @@ $("#filtre").addEventListener("input", rendreHistorique);
 // Véhicules
 $("#liste-vehicules").addEventListener("click", e => {
   const b = e.target.closest("[data-vehicule]");
-  if (b && b.dataset.vehicule !== data.actif) { changerVehicule(b.dataset.vehicule); toast("Véhicule affiché : " + $("#sel-vehicule").selectedOptions[0].text); }
+  if (b && b.dataset.vehicule !== data.actif) {
+    changerVehicule(b.dataset.vehicule); centrerVehiculeActif(false);
+    toast("Véhicule affiché : " + nomVehicule(V(), data.vehicules.indexOf(V())));
+  }
 });
 $("#btn-ajout-vehicule").addEventListener("click", ajouterVehicule);
 $("#form-vehicule").addEventListener("submit", e => e.preventDefault());
-$("#form-vehicule").addEventListener("change", () => {
-  V().infos = {
+$("#form-vehicule").addEventListener("change", e => {
+  const v = V();
+  v.infos = {
     marque: $("#v-marque").value.trim(), modele: $("#v-modele").value.trim(),
     immat: $("#v-immat").value.trim().toUpperCase(), mec: $("#v-mec").value,
+    // type et couleur ne sont mémorisés que si l'utilisateur les a choisis (sinon déduits)
+    type: e.target.id === "v-type" ? $("#v-type").value : v.infos.type,
+    couleur: e.target.id === "v-couleur" ? $("#v-couleur").value : v.infos.couleur,
   };
   sauver();
   const appliques = appliquerPlansAuto();
@@ -1085,4 +1310,7 @@ window.addEventListener("pageshow", verifierMiseAJour);
 const plansAuto = appliquerPlansAuto();
 resetFormInterv();
 rendre();
+centrerVehiculeActif(false);
+// la 3D se charge après l'affichage, pour ne pas retarder l'ouverture de l'appli
+setTimeout(() => Vue3D.demarrer(), 300);
 if (plansAuto.length) toast(`Plan d'entretien ${plansAuto.join(", ")} appliqué`);
