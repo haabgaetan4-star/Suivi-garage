@@ -241,7 +241,16 @@ function rendre() {
 // Type et couleur : choisis dans la fiche véhicule, sinon déduits de la marque et du modèle
 const MOTOS = /\b(mt[\s-]?\d{2}|moto|motocyclette|yamaha|kawasaki|ducati|ktm|triumph|harley|aprilia|husqvarna|royal enfield|z\d{3,4}|cbr?\s?\d{3,4}|gsx|r\s?1250|gs\s?\d{3,4})\b/i;
 const typeVehicule = v => v.infos.type || (MOTOS.test(`${v.infos.marque} ${v.infos.modele}`) ? "moto" : "voiture");
-const couleurVehicule = v => v.infos.couleur || (typeVehicule(v) === "moto" ? "#2f55b0" : "#a3acb8");
+const couleurVehicule = v => v.infos.couleur || modele3D(v)?.couleur || (typeVehicule(v) === "moto" ? "#2f55b0" : "#a3acb8");
+// Modèles 3D dédiés, reconnus par la marque et le modèle (d'après les photos du propriétaire) ;
+// les autres véhicules utilisent la berline ou la moto génériques.
+const MODELES_3D = [
+  { id: "bmw-e91", couleur: "#b8bcc1", construire: (T, c) => construireBmwE91(T, c),
+    detecte: v => /bmw/i.test(v.infos.marque) && /(s[ée]rie\s*3|\b3\d\d[di]?\b|e9[01])/i.test(v.infos.modele) },
+  { id: "mt09-1", couleur: "#56595f", construire: (T, c) => construireMt09(T, c),
+    detecte: v => /mt[\s-]?0?9\b/i.test(`${v.infos.marque} ${v.infos.modele}`) },
+];
+const modele3D = v => MODELES_3D.find(m => m.detecte(v)) || null;
 const SILHOUETTES = {
   voiture: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 11 1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11M3 17v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4zM5.5 17v2.5M18.5 17v2.5"/><circle cx="7.5" cy="14" r="1"/><circle cx="16.5" cy="14" r="1"/></svg>',
   moto: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="16" r="3.5"/><circle cx="18.5" cy="16" r="3.5"/><path d="M5.5 16 9 10h5l2.5 6M14 10l1.5-3H18M9 10 8 8H6"/></svg>',
@@ -1013,6 +1022,180 @@ function construireMoto(T, couleur) {
   return g;
 }
 
+// --- Aides de construction (unités : mètres) ---
+function profilExtrude(T, pts, prof, mat, biseau = 0.05) {
+  const f = new T.Shape();
+  pts.forEach(([x, y], i) => (i ? f.lineTo(x, y) : f.moveTo(x, y)));
+  f.closePath();
+  const geo = new T.ExtrudeGeometry(f, { depth: prof, bevelEnabled: biseau > 0, bevelThickness: biseau, bevelSize: biseau, bevelSegments: 4, curveSegments: 8 });
+  geo.translate(0, 0, -prof / 2);
+  return new T.Mesh(geo, mat);
+}
+function barre(T, a, b, r, mat) {
+  const d = new T.Vector3(b[0] - a[0], b[1] - a[1], (b[2] || 0) - (a[2] || 0));
+  const m = new T.Mesh(new T.CylinderGeometry(r, r, d.length(), 12), mat);
+  m.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, ((a[2] || 0) + (b[2] || 0)) / 2);
+  m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize());
+  return m;
+}
+function boite(T, dims, pos, mat, rot) {
+  const m = new T.Mesh(new T.BoxGeometry(...dims), mat);
+  m.position.set(...pos);
+  if (rot) m.rotation.set(...rot);
+  return m;
+}
+
+// BMW Série 3 Touring (E91 restylée) : break gris argent, barres de toit noires, jantes anthracite
+function construireBmwE91(T, couleur) {
+  const g = new T.Group();
+  const peinture = new T.MeshStandardMaterial({ color: couleur, metalness: 0.7, roughness: 0.32 });
+  const vitre = new T.MeshStandardMaterial({ color: 0x0e131b, metalness: 0.9, roughness: 0.06 });
+  const noir = new T.MeshStandardMaterial({ color: 0x0b0c0e, roughness: 0.6 });
+  const chrome = new T.MeshStandardMaterial({ color: 0xe0e4ea, metalness: 1, roughness: 0.15 });
+  const pneu = new T.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 0.92 });
+  const anthracite = new T.MeshStandardMaterial({ color: 0x45494f, metalness: 0.6, roughness: 0.4 });
+  const fondJante = new T.MeshStandardMaterial({ color: 0x151619, roughness: 0.7 });
+  const phare = new T.MeshStandardMaterial({ color: 0xe8eef5, emissive: 0x9fb2c8, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.1 });
+  const feu = new T.MeshStandardMaterial({ color: 0xc8121a, emissive: 0x8a0008, emissiveIntensity: 0.8, roughness: 0.2 });
+
+  // caisse : capot plat, ligne de caisse montante, arrière vertical de break ;
+  // partie basse en trois morceaux pour dégager les passages de roues
+  g.add(profilExtrude(T, [[2.27, 0.56], [2.17, 0.7], [1.9, 0.76], [0.88, 0.92], [-1.9, 0.99], [-2.2, 0.97], [-2.27, 0.86], [-2.29, 0.56]], 1.7, peinture, 0.06));
+  g.add(profilExtrude(T, [[2.27, 0.58], [2.27, 0.36], [2.2, 0.22], [1.86, 0.22], [1.86, 0.58]], 1.7, peinture, 0.06));
+  g.add(profilExtrude(T, [[1.07, 0.58], [1.07, 0.2], [-0.89, 0.2], [-0.89, 0.58]], 1.7, peinture, 0.06));
+  g.add(profilExtrude(T, [[-1.68, 0.58], [-1.68, 0.22], [-2.2, 0.22], [-2.29, 0.4], [-2.29, 0.58]], 1.7, peinture, 0.06));
+  // intérieur sombre des passages de roues
+  [[1.47, 0.79], [1.47, -0.79], [-1.29, 0.79], [-1.29, -0.79]].forEach(([x, z]) => g.add(boite(T, [0.76, 0.1, 0.3], [x, 0.6, z * 0.85], noir)));
+  // pavillon long (break) couleur carrosserie, vitrage en léger relief
+  g.add(profilExtrude(T, [[0.86, 0.9], [0.0, 1.36], [-1.95, 1.38], [-2.18, 1.28], [-2.22, 0.96], [-1.9, 0.96]], 1.36, peinture, 0.05));
+  g.add(profilExtrude(T, [[0.93, 0.9], [0.04, 1.31], [-1.93, 1.33], [-2.21, 1.24], [-2.25, 0.97], [-1.9, 0.95]], 1.46, vitre, 0.03));
+  // barres de toit noires et becquet
+  [0.62, -0.62].forEach(z => g.add(boite(T, [1.85, 0.04, 0.05], [-0.98, 1.43, z], noir)));
+  g.add(boite(T, [0.2, 0.04, 1.28], [-2.1, 1.41, 0], peinture, [0, 0, -0.15]));
+  // face avant : double calandre noire au contour chromé, phares étirés, prise d'air, antibrouillards
+  [0.13, -0.13].forEach(z => {
+    g.add(boite(T, [0.03, 0.2, 0.23], [2.262, 0.6, z], chrome));
+    g.add(boite(T, [0.03, 0.16, 0.19], [2.28, 0.6, z], noir));
+  });
+  [0.55, -0.55].forEach(z => {
+    g.add(boite(T, [0.06, 0.1, 0.44], [2.19, 0.64, z], phare, [0, Math.sign(z) * 0.35, 0]));
+    g.add(boite(T, [0.04, 0.06, 0.16], [2.26, 0.33, z * 1.12], noir));
+  });
+  g.add(boite(T, [0.04, 0.1, 0.84], [2.28, 0.34, 0], noir));
+  // arrière : feux qui débordent sur les flancs, sortie d'échappement unique
+  [0.56, -0.56].forEach(z => {
+    g.add(boite(T, [0.05, 0.13, 0.4], [-2.29, 0.83, z], feu));
+    g.add(boite(T, [0.3, 0.13, 0.04], [-2.16, 0.83, Math.sign(z) * 0.905], feu));
+  });
+  g.add(barre(T, [-2.2, 0.24, 0.5], [-2.36, 0.24, 0.5], 0.045, chrome));
+  // rétroviseurs
+  [0.97, -0.97].forEach(z => g.add(boite(T, [0.13, 0.1, 0.17], [0.72, 1.0, z], peinture)));
+  // jantes anthracite à doubles branches
+  const roue = (x, z) => {
+    const r = new T.Group();
+    r.add(new T.Mesh(new T.CylinderGeometry(0.33, 0.33, 0.225, 36), pneu));
+    r.add(new T.Mesh(new T.CylinderGeometry(0.225, 0.225, 0.235, 28), fondJante));
+    for (let i = 0; i < 10; i++) {
+      const piv = new T.Group();
+      [0.124, -0.124].forEach(y => piv.add(boite(T, [0.03, 0.012, 0.2], [0, y, 0.11], anthracite)));
+      piv.rotation.y = i * Math.PI / 5 + (i % 2) * 0.12;
+      r.add(piv);
+    }
+    r.add(new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.25, 16), anthracite));
+    r.rotation.x = Math.PI / 2;
+    r.position.set(x, 0.33, z);
+    return r;
+  };
+  [[1.47, 0.79], [1.47, -0.79], [-1.29, 0.79], [-1.29, -0.79]].forEach(([x, z]) => g.add(roue(x, z)));
+  g.position.x = -0.09;
+  return g;
+}
+
+// Yamaha MT-09 première génération (2014-2016) : gris mat, cadre alu, accessoires rouges
+function construireMt09(T, couleur) {
+  const g = new T.Group();
+  const mat = new T.MeshStandardMaterial({ color: couleur, metalness: 0.35, roughness: 0.72 });
+  const noirMat = new T.MeshStandardMaterial({ color: 0x141518, roughness: 0.75 });
+  const alu = new T.MeshStandardMaterial({ color: 0x8e939a, metalness: 0.8, roughness: 0.35 });
+  const argent = new T.MeshStandardMaterial({ color: 0xc7cbd1, metalness: 0.95, roughness: 0.2 });
+  const moteur = new T.MeshStandardMaterial({ color: 0x3a3d42, metalness: 0.6, roughness: 0.45 });
+  const pneu = new T.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.9 });
+  const rouge = new T.MeshStandardMaterial({ color: 0xc5141d, metalness: 0.5, roughness: 0.35 });
+  const orange = new T.MeshStandardMaterial({ color: 0xffa31a, emissive: 0x9a5200, emissiveIntensity: 0.5, roughness: 0.3 });
+  const phare = new T.MeshStandardMaterial({ color: 0xb9c3cf, emissive: 0x5c6a7a, emissiveIntensity: 0.6, metalness: 0.5, roughness: 0.1 });
+  const feu = new T.MeshStandardMaterial({ color: 0xd01018, emissive: 0x900008, emissiveIntensity: 0.9 });
+
+  // roues : jantes noires à 10 branches, pneu arrière plus large
+  const roue = (x, large) => {
+    const r = new T.Group();
+    const p = new T.Mesh(new T.TorusGeometry(0.245, large ? 0.075 : 0.065, 16, 40), pneu);
+    p.scale.z = large ? 1.5 : 1.15;
+    r.add(p);
+    r.add(new T.Mesh(new T.TorusGeometry(0.205, 0.014, 8, 36), noirMat));
+    for (let i = 0; i < 10; i++) {
+      const piv = new T.Group();
+      piv.add(boite(T, [0.016, 0.19, 0.02], [0, 0.1, 0], noirMat));
+      piv.rotation.z = i * Math.PI / 5;
+      r.add(piv);
+    }
+    r.add(barre(T, [0, 0, -0.1], [0, 0, 0.1], 0.04, alu));
+    r.position.set(x, 0.315, 0);
+    return r;
+  };
+  g.add(roue(0.72, false), roue(-0.72, true));
+  [0.085, -0.085].forEach(z => g.add(barre(T, [0.72, 0.315, z], [0.72, 0.315, z + Math.sign(z) * 0.008], 0.15, argent)));
+  // fourche : fourreaux noirs, tubes argent, garde-boue noir
+  [0.1, -0.1].forEach(z => {
+    g.add(barre(T, [0.72, 0.31, z], [0.65, 0.55, z], 0.038, noirMat));
+    g.add(barre(T, [0.65, 0.55, z], [0.53, 0.97, z], 0.028, argent));
+  });
+  g.add(boite(T, [0.34, 0.03, 0.15], [0.73, 0.6, 0], noirMat, [0, 0, -0.25]));
+  // cadre et bras oscillant en alu
+  [0.17, -0.17].forEach(z => {
+    g.add(barre(T, [0.48, 0.92, z * 0.7], [-0.1, 0.56, z], 0.048, alu));
+    g.add(barre(T, [-0.12, 0.5, z * 0.75], [-0.72, 0.315, z * 0.75], 0.035, alu));
+  });
+  // moteur trois cylindres, radiateur, échappement court sous le moteur
+  g.add(boite(T, [0.44, 0.36, 0.34], [0.07, 0.5, 0], moteur));
+  g.add(boite(T, [0.28, 0.2, 0.3], [0.2, 0.74, 0], moteur, [0, 0, -0.35]));
+  [0.19, -0.19].forEach(z => g.add(barre(T, [0.0, 0.48, z * 0.9], [0.0, 0.48, z], 0.1, alu)));
+  g.add(boite(T, [0.05, 0.3, 0.42], [0.39, 0.62, 0], noirMat, [0, 0, 0.25]));
+  [-0.07, 0, 0.07].forEach(z => g.add(barre(T, [0.3, 0.62, z], [0.2, 0.22, z], 0.022, argent)));
+  g.add(boite(T, [0.42, 0.13, 0.26], [-0.08, 0.2, 0], moteur));
+  // amortisseur arrière au ressort rouge
+  g.add(barre(T, [-0.16, 0.42, 0], [-0.08, 0.72, 0], 0.04, rouge));
+  // réservoir anguleux et écopes latérales, gris mat
+  g.add(profilExtrude(T, [[0.43, 0.94], [0.26, 1.04], [-0.08, 1.02], [-0.18, 0.88], [0.3, 0.82]], 0.36, mat, 0.04));
+  [0.21, -0.21].forEach(z => {
+    const ecope = profilExtrude(T, [[0.52, 0.93], [0.4, 0.99], [0.2, 0.8], [0.3, 0.62], [0.46, 0.72]], 0.05, mat, 0.015);
+    ecope.position.z = z;
+    g.add(ecope);
+  });
+  // selle noire en deux niveaux, coque arrière courte, feu à LED, support de plaque
+  g.add(profilExtrude(T, [[-0.1, 1.0], [-0.42, 0.97], [-0.6, 1.01], [-0.78, 1.06], [-0.8, 0.99], [-0.45, 0.9], [-0.12, 0.9]], 0.28, noirMat, 0.03));
+  g.add(boite(T, [0.2, 0.06, 0.16], [-0.84, 1.0, 0], mat, [0, 0, 0.2]));
+  g.add(boite(T, [0.03, 0.04, 0.13], [-0.94, 1.02, 0], feu));
+  g.add(barre(T, [-0.86, 0.95, 0], [-0.98, 0.72, 0], 0.02, noirMat));
+  g.add(boite(T, [0.01, 0.1, 0.17], [-0.99, 0.7, 0], new T.MeshStandardMaterial({ color: 0xbfc3c8, roughness: 0.6 })));
+  [0.1, -0.1].forEach(z => g.add(boite(T, [0.05, 0.03, 0.03], [-0.97, 0.78, z * 1.6], orange)));
+  // phare unique dans son carénage anguleux, clignotants, tableau de bord
+  g.add(boite(T, [0.12, 0.19, 0.25], [0.6, 0.9, 0], noirMat, [0, 0, 0.2]));
+  g.add(boite(T, [0.02, 0.09, 0.12], [0.665, 0.88, 0], phare, [0, 0, 0.2]));
+  [0.17, -0.17].forEach(z => g.add(boite(T, [0.06, 0.035, 0.035], [0.56, 0.97, z], orange)));
+  g.add(boite(T, [0.08, 0.06, 0.12], [0.47, 1.07, 0], noirMat, [0, 0, 0.5]));
+  // guidon, poignées et leviers rouges, rétroviseurs noirs
+  g.add(barre(T, [0.44, 1.08, -0.34], [0.44, 1.08, 0.34], 0.014, argent));
+  [1, -1].forEach(c => {
+    g.add(barre(T, [0.44, 1.08, c * 0.26], [0.44, 1.08, c * 0.38], 0.022, rouge));
+    g.add(barre(T, [0.47, 1.07, c * 0.18], [0.52, 1.05, c * 0.33], 0.008, rouge));
+    g.add(barre(T, [0.44, 1.08, c * 0.2], [0.41, 1.3, c * 0.27], 0.008, noirMat));
+    g.add(boite(T, [0.015, 0.08, 0.14], [0.41, 1.32, c * 0.31], noirMat, [c * 0.2, 0, 0]));
+  });
+  g.scale.setScalar(1.75);
+  g.position.x = 0.05;
+  return g;
+}
+
 function ombreSol(T) {
   const c = document.createElement("canvas"); c.width = c.height = 128;
   const ctx = c.getContext("2d"), grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
@@ -1040,7 +1223,8 @@ const Vue3D = {
     document.addEventListener("visibilitychange", () => { if (!document.hidden) this.boucle(); });
   },
   scene(v) {
-    const T = THREE, type = typeVehicule(v), couleur = couleurVehicule(v), cle = `${type}|${couleur}`;
+    const T = THREE, type = typeVehicule(v), couleur = couleurVehicule(v), dedie = modele3D(v);
+    const cle = `${type}|${couleur}|${dedie ? dedie.id : ""}`;
     let m = this.modeles.get(v.id);
     if (m && m.cle === cle) return m;
     const scene = new T.Scene();
@@ -1048,13 +1232,16 @@ const Vue3D = {
     const soleil = new T.DirectionalLight(0xffffff, 1.15); soleil.position.set(4, 8, 6); scene.add(soleil);
     const contre = new T.DirectionalLight(0x9db8ff, 0.55); contre.position.set(-6, 3, -4); scene.add(contre);
     const pivot = new T.Group();
-    pivot.add(type === "moto" ? construireMoto(T, couleur) : construireVoiture(T, couleur));
+    // modèle dédié seulement s'il correspond au type choisi (voiture/moto)
+    const dedieOk = dedie && (dedie.id.startsWith("mt") ? type === "moto" : type === "voiture");
+    pivot.add(dedieOk ? dedie.construire(T, couleur) : type === "moto" ? construireMoto(T, couleur) : construireVoiture(T, couleur));
     pivot.add(ombreSol(T));
     scene.add(pivot);
     const camera = new T.PerspectiveCamera(26, 2, 0.1, 100);
-    camera.position.set(4.9, 2.2, 5.9);
-    camera.lookAt(0, 0.72, 0);
-    m = { cle, scene, camera, pivot, angle: m ? m.angle : -0.6 };
+    camera.position.set(5.5, 2.4, 6.6);
+    camera.lookAt(0, 0.68, 0);
+    // angle de départ : trois quarts avant pour une voiture, plus de profil pour une moto (silhouette étroite)
+    m = { cle, scene, camera, pivot, angle: m ? m.angle : type === "moto" ? -0.3 : -0.6 };
     pivot.rotation.y = m.angle;
     this.modeles.set(v.id, m);
     return m;
