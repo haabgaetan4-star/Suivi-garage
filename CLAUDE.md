@@ -15,6 +15,9 @@ Modèles 3D de l'en-tête : Three.js r128 (cdnjs), modèles génériques constru
 (`MODELES_3D` : BMW Série 3 Touring E91 gris argent, Yamaha MT-09 2014-2016 gris mat), d'après ses photos, un seul contexte WebGL copié dans le canvas de chaque carte.
 (versions figées dans `OCR` dans app.js ; `window.OCR_CHEMINS` permet de les servir en local pour les tests).
 
+Direction artistique : fond noir, accent orange (#ff9500, texte noir sur l'orange), thème sombre uniquement ;
+les couleurs sont des variables CSS en tête de style.css.
+
 ## Publication
 
 - Le propriétaire autorise la publication directe sur `main`, sans pull request.

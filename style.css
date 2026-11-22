@@ -1,37 +1,22 @@
 :root {
-  color-scheme: light dark;
-  --bg: #f2f3f7;
-  --carte: #ffffff;
-  --texte: #151923;
-  --muted: #6b7280;
-  --bord: #e4e6eb;
-  --accent: #2563eb;        /* liens, textes accentués */
-  --accent-plein: #2563eb;  /* fond des boutons principaux */
-  --accent-doux: #e8efff;
-  --ok: #15803d;   --ok-doux: #e6f5eb;
-  --soon: #b45309; --soon-doux: #fdf2e1;
-  --late: #c62828; --late-doux: #fdeaea;
-  --none: #6b7280; --none-doux: #eef0f3;
-  --ombre: 0 1px 2px rgba(16, 24, 40, .04), 0 2px 8px rgba(16, 24, 40, .06);
+  /* Direction artistique : fond noir, accent orange (thème sombre uniquement) */
+  color-scheme: dark;
+  --bg: #000000;
+  --carte: #121212;
+  --texte: #f2f2f2;
+  --muted: #9a9a9a;
+  --bord: #262626;
+  --accent: #ff9f0a;        /* liens, textes accentués */
+  --accent-plein: #ff9500;  /* fond des boutons principaux */
+  --sur-accent: #000000;    /* texte sur fond orange */
+  --accent-doux: #2b1b05;
+  --ok: #4ade80;   --ok-doux: #0f2416;
+  --soon: #facc15; --soon-doux: #2a2408;
+  --late: #f87171; --late-doux: #2e1313;
+  --none: #9a9a9a; --none-doux: #1e1e1e;
+  --ombre: none;
   --rayon: 16px;
   --nav: 64px;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1218;
-    --carte: #1a1f29;
-    --texte: #e8eaef;
-    --muted: #9aa3b2;
-    --bord: #2a313d;
-    --accent: #6ea8ff;
-    --accent-plein: #2f6fe4;
-    --accent-doux: #1b2944;
-    --ok: #4ade80;   --ok-doux: #15291d;
-    --soon: #fbbf24; --soon-doux: #2e2412;
-    --late: #f87171; --late-doux: #331a1c;
-    --none: #9aa3b2; --none-doux: #232935;
-    --ombre: none;
-  }
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -77,9 +62,17 @@ body {
 .vcarte-scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .4s; touch-action: pan-x; }
 .vcarte-scene canvas.pret { opacity: 1; }
 .vcarte-scene canvas.pret + svg, .vcarte-scene:has(canvas.pret) svg { opacity: 0; }
-.vehicule-actif { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; padding: 6px 4px 2px; }
-.va-nom { font-size: 1.25rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
-.va-sous { color: var(--muted); font-size: .8rem; margin-left: auto; white-space: nowrap; }
+.vehicule-actif { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 4px 4px; }
+.va-nom { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+/* immatriculation présentée comme une plaque (fond blanc, bande bleue européenne) */
+.va-plaque {
+  display: inline-flex; align-items: stretch; align-self: center; overflow: hidden;
+  background: #f4f4f2; color: #111; border: 1.5px solid #111; border-radius: 4px;
+  font-weight: 700; font-size: 1rem; letter-spacing: .06em; line-height: 1; white-space: nowrap;
+  box-shadow: 0 0 0 1px #3a3a3a;
+}
+.va-plaque::before { content: "F"; display: flex; align-items: flex-end; padding: 2px 3px; background: #1d4fb8; color: #fff; font-size: .55rem; letter-spacing: 0; }
+.va-plaque span { padding: 4px 7px 3px; }
 .vcarte-nom { font-weight: 800; font-size: .92rem; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vcarte-sous { font-size: .75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vcarte.ajout {
@@ -170,7 +163,7 @@ button, .bouton {
   font-weight: 600; cursor: pointer; transition: transform .08s, opacity .15s;
 }
 button:active, .bouton:active { transform: scale(.97); }
-.principal { background: var(--accent-plein); color: #fff; }
+.principal { background: var(--accent-plein); color: var(--sur-accent); }
 .secondaire { background: var(--accent-doux); color: var(--accent); }
 .danger { background: var(--late-doux); color: var(--late); }
 .plein { width: 100%; }
@@ -181,7 +174,7 @@ button:active, .bouton:active { transform: scale(.97); }
 }
 .icone-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .icone-btn.suppr:hover, .icone-btn.suppr:active { color: var(--late); background: var(--late-doux); }
-.icone-btn.ajout { background: var(--accent-plein); color: #fff; font-size: 1.2rem; }
+.icone-btn.ajout { background: var(--accent-plein); color: var(--sur-accent); font-size: 1.2rem; }
 
 /* ---------- Accueil : kilométrage ---------- */
 .carte-km { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; }
@@ -280,7 +273,7 @@ button:active, .bouton:active { transform: scale(.97); }
 .option.cochee .coche-visuelle { background: var(--accent-plein); border-color: var(--accent-plein); }
 .option.cochee .coche-visuelle::after {
   content: ""; width: 6px; height: 11px; margin-top: -2px;
-  border-right: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(45deg);
+  border-right: 2.5px solid var(--sur-accent); border-bottom: 2.5px solid var(--sur-accent); transform: rotate(45deg);
 }
 .option-tete input:focus-visible + .coche-visuelle { outline: 2px solid var(--accent); outline-offset: 2px; }
 .option-texte { display: flex; flex-direction: column; min-width: 0; }

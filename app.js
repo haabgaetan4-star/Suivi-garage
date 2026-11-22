@@ -256,6 +256,8 @@ const SILHOUETTES = {
   moto: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="16" r="3.5"/><circle cx="18.5" cy="16" r="3.5"/><path d="M5.5 16 9 10h5l2.5 6M14 10l1.5-3H18M9 10 8 8H6"/></svg>',
 };
 
+// AB123CD -> AB-123-CD (format SIV) ; tout autre format est affiché tel quel
+const formatPlaque = p => { const c = p.replace(/[\s-]/g, "").toUpperCase(); return /^[A-Z]{2}\d{3}[A-Z]{2}$/.test(c) ? `${c.slice(0, 2)}-${c.slice(2, 5)}-${c.slice(5)}` : p; };
 function rendreEntete() {
   const v = V(), garage = $("#garage"), defil = garage.scrollLeft;
   // cartes du carrousel : uniquement le modèle 3D (silhouette en attendant le chargement)
@@ -264,9 +266,9 @@ function rendreEntete() {
     </button>`).join("") + `<button type="button" class="vcarte ajout" data-ajout-vehicule aria-label="Ajouter un véhicule"><span>＋</span></button>`;
   garage.scrollLeft = defil;
   // infos du véhicule affiché, sous le carrousel
-  const km = kmCourant(v);
-  const sous = [v.infos.immat, km != null ? kmFmt(km) : null].filter(Boolean).join(" · ") || "Infos à compléter dans l'onglet Véhicules";
-  $("#vehicule-actif").innerHTML = `<div class="va-nom">${esc(nomVehicule(v, data.vehicules.indexOf(v)))}</div><div class="va-sous">${esc(sous)}</div>`;
+  // marque, modèle et plaque (le kilométrage est déjà affiché juste en dessous)
+  $("#vehicule-actif").innerHTML = `<div class="va-nom">${esc(nomVehicule(v, data.vehicules.indexOf(v)))}</div>`
+    + (v.infos.immat ? `<div class="va-plaque" aria-label="Immatriculation"><span>${esc(formatPlaque(v.infos.immat))}</span></div>` : "");
   if (Vue3D.autorise) Vue3D.demarrer();
   Vue3D.dessinerTout();
 }
