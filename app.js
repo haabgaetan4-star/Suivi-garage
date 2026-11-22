@@ -362,15 +362,6 @@ function rendreHistorique() {
 function rendreVehicules() {
   const v = V();
   rendreModele3D();
-  $("#liste-vehicules").innerHTML = data.vehicules.map((x, i) => {
-    const sous = [x.infos.immat, kmCourant(x) != null ? kmFmt(kmCourant(x)) : null].filter(Boolean).join(" · ") || "Infos à compléter";
-    return `<button type="button" class="vehicule-ligne ${x.id === v.id ? "actif" : ""}" data-vehicule="${x.id}">
-      <span class="radio"></span>
-      <span class="v-texte"><span class="v-nom">${esc(nomVehicule(x, i))}</span><span class="v-sous">${esc(sous)}</span></span>
-      ${x.id === v.id ? '<span class="v-actif">Affiché</span>' : ""}
-    </button>`;
-  }).join("");
-
   // ne pas écraser un champ en cours de saisie
   const champs = { "#v-marque": v.infos.marque, "#v-modele": v.infos.modele, "#v-immat": v.infos.immat, "#v-mec": v.infos.mec,
     "#v-type": typeVehicule(v), "#v-couleur": couleurVehicule(v) };
@@ -1457,15 +1448,7 @@ $("#liste-visites").addEventListener("click", e => {
 });
 $("#filtre").addEventListener("input", rendreHistorique);
 
-// Véhicules
-$("#liste-vehicules").addEventListener("click", e => {
-  const b = e.target.closest("[data-vehicule]");
-  if (b && b.dataset.vehicule !== data.actif) {
-    changerVehicule(b.dataset.vehicule); centrerVehiculeActif(false);
-    toast("Véhicule affiché : " + nomVehicule(V(), data.vehicules.indexOf(V())));
-  }
-});
-$("#btn-ajout-vehicule").addEventListener("click", ajouterVehicule);
+// Véhicules (choix et ajout depuis le carrousel)
 $("#form-vehicule").addEventListener("submit", e => e.preventDefault());
 $("#form-vehicule").addEventListener("change", e => {
   const v = V();
