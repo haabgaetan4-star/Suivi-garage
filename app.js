@@ -1300,7 +1300,12 @@ const Vue3D = {
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     const m = this.scene(v), R = this.renderer;
     if (!m) return;
-    m.camera.aspect = w / h; m.camera.updateProjectionMatrix();
+    m.camera.aspect = w / h;
+    // cadre étroit (carte carrée) : la caméra recule pour que le véhicule entre en entier
+    const recul = w / h >= 2 ? 1 : 1 + (2 - w / h) * 0.5;
+    m.camera.position.set(5.5 * recul, 0.68 + 1.72 * recul, 6.6 * recul);
+    m.camera.lookAt(0, 0.68, 0);
+    m.camera.updateProjectionMatrix();
     if (R.domElement.width !== w || R.domElement.height !== h) R.setSize(w, h, false);
     R.render(m.scene, m.camera);
     const ctx = canvas.getContext("2d");
