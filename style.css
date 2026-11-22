@@ -102,6 +102,7 @@ input[type=color]::-webkit-color-swatch { border: none; border-radius: 6px; }
 }
 .apercu-vehicule:empty { display: none; }
 .cadrage { display: grid; gap: 10px; margin-top: 12px; }
+#bloc-affichage { margin-top: 12px; }
 input[type=range] {
   -webkit-appearance: auto; appearance: auto; padding: 0; min-height: 28px;
   background: none; border: none; accent-color: var(--accent-plein);

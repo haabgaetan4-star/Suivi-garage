@@ -9,9 +9,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261122123620">
+  <meta name="app-version" content="20261122130249">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261122123620">
+  <link rel="stylesheet" href="style.css?v=20261122130249">
 </head>
 <body>
   <header class="entete">
@@ -149,6 +149,16 @@
         </div>
       </div>
 
+      <h2 class="titre-section">Modèle 3D</h2>
+      <div class="carte">
+        <p class="petit muted" id="m3d-aide">Importe un modèle 3D (.glb) de ton véhicule pour l'afficher en haut de l'écran. Il reste sur ce téléphone.</p>
+        <div class="boutons">
+          <label class="bouton secondaire" id="m3d-libelle">Importer un modèle (.glb)<input type="file" id="v-m3d" hidden></label>
+          <button type="button" class="danger" id="v-m3d-retirer" hidden>Retirer le modèle</button>
+        </div>
+        <label class="champ" id="bloc-affichage" hidden>Affichage dans le carrousel<select id="v-affichage"><option value="3d">Modèle 3D</option><option value="photo">Photo</option></select></label>
+      </div>
+
       <h2 class="titre-section">Plan d'entretien</h2>
       <p class="aide muted">Périodicités indicatives : vérifie le carnet d'entretien du véhicule. Laisse vide ce qui ne s'applique pas.</p>
       <div id="plan-type"></div>
@@ -207,6 +217,6 @@
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261122123620"></script>
+  <script src="app.js?v=20261122130249"></script>
 </body>
 </html>

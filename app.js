@@ -274,6 +274,8 @@ async function chargerPhotosVehicules() {
   if (change) { rendreEntete(); rendrePhotoVehicule(); }
 }
 const photoVehicule = v => v.infos.photo && urlsPhotos.get(v.infos.photo);
+// la photo s'affiche sauf si un modèle 3D importé est choisi pour le carrousel
+const montrerPhoto = v => photoVehicule(v) && !(v.infos.modele3d && v.infos.affichage !== "photo");
 
 function rendreEntete() {
   const v = V(), garage = $("#garage"), defil = garage.scrollLeft;
@@ -281,7 +283,7 @@ function rendreEntete() {
     const km = kmCourant(x);
     const sous = [x.infos.immat, km != null ? kmFmt(km) : null].filter(Boolean).join(" · ") || "Infos à compléter";
     return `<button type="button" class="vcarte ${x.id === v.id ? "actif" : ""}" data-vehicule="${x.id}" aria-pressed="${x.id === v.id}">
-      ${photoVehicule(x)
+      ${montrerPhoto(x)
         ? `<div class="vcarte-scene photo"><img src="${photoVehicule(x)}" alt="" style="${styleCadrage(cadrageDe(x))}"></div>`
         : `<div class="vcarte-scene"><canvas></canvas>${SILHOUETTES[typeVehicule(x)]}</div>`}
       <div class="vcarte-nom">${esc(nomVehicule(x, i))}</div>
@@ -290,7 +292,7 @@ function rendreEntete() {
   }).join("") + `<button type="button" class="vcarte ajout" data-ajout-vehicule><span>＋</span><span>Ajouter</span></button>`;
   garage.scrollLeft = defil;
   // la 3D ne sert qu'aux véhicules sans photo
-  if (data.vehicules.some(x => !photoVehicule(x))) { if (Vue3D.autorise) Vue3D.demarrer(); Vue3D.dessinerTout(); }
+  if (data.vehicules.some(x => !montrerPhoto(x))) { if (Vue3D.autorise) Vue3D.demarrer(); Vue3D.dessinerTout(); }
 }
 function centrerVehiculeActif(doux) {
   const c = $(`.vcarte[data-vehicule="${data.actif}"]`);
@@ -382,6 +384,7 @@ function rendreHistorique() {
 function rendreVehicules() {
   const v = V();
   rendrePhotoVehicule();
+  rendreModele3D();
   $("#liste-vehicules").innerHTML = data.vehicules.map((x, i) => {
     const sous = [x.infos.immat, kmCourant(x) != null ? kmFmt(kmCourant(x)) : null].filter(Boolean).join(" · ") || "Infos à compléter";
     return `<button type="button" class="vehicule-ligne ${x.id === v.id ? "actif" : ""}" data-vehicule="${x.id}">
@@ -552,6 +555,7 @@ async function nettoyerPhotos() {
     const utilisees = new Set([
       ...data.vehicules.flatMap(v => v.interventions.map(i => i.facture)),
       ...data.vehicules.map(v => v.infos.photo), // photos des véhicules
+      ...data.vehicules.map(v => v.infos.modele3d), // modèles 3D importés
     ].filter(Boolean));
     for (const cle of await Photos.cles()) if (!utilisees.has(cle)) await Photos.supprimer(cle);
   } catch (e) { /* stockage indisponible */ }
@@ -596,6 +600,7 @@ const OCR = window.OCR_CHEMINS || {
   pdfScript: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js",
   pdfWorker: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js",
   three: "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+  gltf: "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js",
 };
 function chargerTesseract() {
   if (window.Tesseract) return Promise.resolve();
@@ -1234,6 +1239,41 @@ function ombreSol(T) {
 
 const Vue3D = {
   pret: false, echec: false, chargement: false, renderer: null, modeles: new Map(), raf: 0, dernier: 0,
+  importes: new Map(), enCours: new Set(), // modèles .glb importés (IndexedDB) : id -> scène glTF
+  async chargerImporte(id) {
+    if (this.enCours.has(id) || this.importes.has(id)) return;
+    this.enCours.add(id);
+    try {
+      if (!THREE.GLTFLoader) await chargerScript(OCR.gltf);
+      const blob = await Photos.lire(id);
+      if (!blob) throw new Error("absent");
+      const gltf = await new THREE.GLTFLoader().parseAsync
+        ? await new THREE.GLTFLoader().parseAsync(await blob.arrayBuffer(), "")
+        : await new Promise(async (ok, ko) => new THREE.GLTFLoader().parse(await blob.arrayBuffer(), "", ok, ko));
+      this.importes.set(id, gltf.scene);
+      this.dessinerTout();
+    } catch (e) { this.importes.set(id, null); } // illisible : modèle généré à la place
+    this.enCours.delete(id);
+  },
+  // mise à l'échelle (longueur réelle), centrage, roues au sol, peinture à la couleur du véhicule
+  preparerImporte(source, type, couleur) {
+    const T = THREE, g = source.clone(true);
+    const bb = new T.Box3().setFromObject(g), t = bb.getSize(new T.Vector3());
+    const echelle = (type === "moto" ? 3.6 : 4.53) / Math.max(t.x, t.z);
+    g.scale.setScalar(echelle);
+    g.updateMatrixWorld(true);
+    const b2 = new T.Box3().setFromObject(g), c = b2.getCenter(new T.Vector3());
+    const conteneur = new T.Group();
+    g.position.set(-c.x, -b2.min.y, -c.z);
+    g.traverse(o => {
+      if (o.isMesh && o.material && /peinture|paint|lak/i.test(o.material.name)) {
+        o.material = o.material.clone();
+        o.material.color = new T.Color(couleur).convertSRGBToLinear();
+      }
+    });
+    conteneur.add(g);
+    return conteneur;
+  },
   async demarrer() {
     if (this.pret || this.echec || this.chargement) return;
     this.chargement = true;
@@ -1250,7 +1290,9 @@ const Vue3D = {
   },
   scene(v) {
     const T = THREE, type = typeVehicule(v), couleur = couleurVehicule(v), dedie = modele3D(v);
-    const cle = `${type}|${couleur}|${dedie ? dedie.id : ""}`;
+    const importe = v.infos.modele3d && this.importes.get(v.infos.modele3d);
+    if (v.infos.modele3d && !this.importes.has(v.infos.modele3d)) { this.chargerImporte(v.infos.modele3d); return null; } // en cours de chargement
+    const cle = `${type}|${couleur}|${dedie ? dedie.id : ""}|${v.infos.modele3d || ""}`;
     let m = this.modeles.get(v.id);
     if (m && m.cle === cle) return m;
     const scene = new T.Scene();
@@ -1260,7 +1302,8 @@ const Vue3D = {
     const pivot = new T.Group();
     // modèle dédié seulement s'il correspond au type choisi (voiture/moto)
     const dedieOk = dedie && (dedie.id.startsWith("mt") ? type === "moto" : type === "voiture");
-    pivot.add(dedieOk ? dedie.construire(T, couleur) : type === "moto" ? construireMoto(T, couleur) : construireVoiture(T, couleur));
+    pivot.add(importe ? this.preparerImporte(importe, type, couleur)
+      : dedieOk ? dedie.construire(T, couleur) : type === "moto" ? construireMoto(T, couleur) : construireVoiture(T, couleur));
     pivot.add(ombreSol(T));
     scene.add(pivot);
     const camera = new T.PerspectiveCamera(26, 2, 0.1, 100);
@@ -1280,6 +1323,7 @@ const Vue3D = {
     const dpr = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     const m = this.scene(v), R = this.renderer;
+    if (!m) return;
     m.camera.aspect = w / h; m.camera.updateProjectionMatrix();
     if (R.domElement.width !== w || R.domElement.height !== h) R.setSize(w, h, false);
     R.render(m.scene, m.camera);
@@ -1334,14 +1378,14 @@ $("#v-photo").addEventListener("change", async e => {
   urlsPhotos.set(id, URL.createObjectURL(blob));
   v.infos.photo = id;
   v.infos.cadrage = { ...CADRAGE_DEFAUT };
-  sauver(); rendreEntete(); rendrePhotoVehicule(); nettoyerPhotos();
+  sauver(); rendreEntete(); rendrePhotoVehicule(); rendreModele3D(); nettoyerPhotos();
   toast("Photo ajoutée : règle le cadrage");
 });
 $("#v-photo-retirer").addEventListener("click", () => {
   const v = V();
   if (!confirm("Retirer la photo de ce véhicule ? Le modèle 3D sera affiché à la place.")) return;
   delete v.infos.photo; delete v.infos.cadrage;
-  sauver(); rendreEntete(); rendrePhotoVehicule(); nettoyerPhotos();
+  sauver(); rendreEntete(); rendrePhotoVehicule(); rendreModele3D(); nettoyerPhotos();
 });
 // cadrage en direct pendant le réglage, enregistré quand on relâche
 ["#c-x", "#c-y", "#c-z"].forEach(sel => {
@@ -1353,6 +1397,41 @@ $("#v-photo-retirer").addEventListener("click", () => {
     $(`.vcarte[data-vehicule="${data.actif}"] .vcarte-scene img`)?.setAttribute("style", style);
   });
   $(sel).addEventListener("change", () => sauver());
+});
+
+// --- Modèle 3D importé (.glb) dans l'onglet Véhicules ---
+function rendreModele3D() {
+  const v = V(), a = !!v.infos.modele3d;
+  $("#v-m3d-retirer").hidden = !a;
+  $("#m3d-libelle").firstChild.textContent = a ? "Remplacer le modèle (.glb)" : "Importer un modèle (.glb)";
+  $("#m3d-aide").textContent = a ? "Modèle 3D importé : il est conservé sur ce téléphone, la peinture prend la couleur du véhicule."
+    : "Importe un modèle 3D (.glb) de ton véhicule pour l'afficher en haut de l'écran. Il reste sur ce téléphone.";
+  $("#bloc-affichage").hidden = !(a && v.infos.photo);
+  $("#v-affichage").value = v.infos.affichage === "photo" ? "photo" : "3d";
+}
+$("#v-m3d").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  if (f.size > 20e6) return toast("⚠️ Modèle trop lourd (20 Mo maximum)");
+  const tete = new Uint8Array(await f.slice(0, 4).arrayBuffer());
+  if (String.fromCharCode(...tete) !== "glTF") return toast("⚠️ Ce fichier n'est pas un modèle .glb");
+  const v = V(), id = "m-" + uid();
+  try { await Photos.mettre(id, new Blob([f], { type: "model/gltf-binary" })); }
+  catch { return toast("⚠️ Modèle non enregistré (stockage indisponible)"); }
+  v.infos.modele3d = id; v.infos.affichage = "3d";
+  sauver(); rendreEntete(); rendreModele3D(); nettoyerPhotos();
+  toast("Modèle 3D importé");
+});
+$("#v-m3d-retirer").addEventListener("click", () => {
+  const v = V();
+  if (!confirm("Retirer le modèle 3D importé ?")) return;
+  delete v.infos.modele3d; delete v.infos.affichage;
+  sauver(); rendreEntete(); rendreModele3D(); nettoyerPhotos();
+});
+$("#v-affichage").addEventListener("change", e => {
+  V().infos.affichage = e.target.value;
+  sauver(); rendreEntete();
 });
 
 // ---------- Navigation ----------
@@ -1573,5 +1652,5 @@ centrerVehiculeActif(false);
 // la 3D se charge après l'affichage, pour ne pas retarder l'ouverture de l'appli
 chargerPhotosVehicules();
 // la 3D se charge après l'affichage, et seulement si un véhicule n'a pas de photo
-setTimeout(() => { Vue3D.autorise = true; if (data.vehicules.some(x => !x.infos.photo)) Vue3D.demarrer(); }, 300);
+setTimeout(() => { Vue3D.autorise = true; if (data.vehicules.some(x => !x.infos.photo || x.infos.modele3d)) Vue3D.demarrer(); }, 300);
 if (plansAuto.length) toast(`Plan d'entretien ${plansAuto.join(", ")} appliqué`);
