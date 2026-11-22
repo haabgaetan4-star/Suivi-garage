@@ -366,6 +366,19 @@ button:active, .bouton:active { transform: scale(.97); }
 .fiche .ligne input[type=date]::-webkit-date-and-time-value { text-align: right; }
 .fiche .ligne select { text-align-last: right; cursor: pointer; }
 .fiche .ligne input[type=color] { flex: 0 0 44px; max-width: 44px; height: 26px; padding: 0; border-radius: 6px; }
+/* Listes d'actions compactes (modèle 3D, sauvegarde, zone sensible) */
+.liste-actions { padding: 0 14px; margin-bottom: 6px; }
+.liste-actions .action {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  min-height: 46px; padding: 0; border: none; border-top: 1px solid var(--bord); border-radius: 0;
+  background: none; color: var(--accent); font-size: .95rem; font-weight: 600; text-align: left; cursor: pointer;
+}
+.liste-actions .action:first-child { border-top: none; }
+.liste-actions .action:active { transform: none; opacity: .6; }
+.liste-actions .action::after { content: "›"; color: var(--muted); font-size: 1.3rem; font-weight: 400; line-height: 1; }
+.liste-actions .action.danger { color: var(--late); background: none; }
+.liste-actions .action[hidden] + .action, .liste-actions .action[hidden] { border-top: none; }
+.note-carte { font-size: .78rem; color: var(--muted); margin: 0 6px 4px; }
 .plan-type { font-size: .78rem; color: var(--muted); margin: -4px 4px 10px; }
 button.lien { display: inline; min-height: 0; padding: 0; border-radius: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; }
 

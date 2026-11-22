@@ -8,9 +8,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261122144133">
+  <meta name="app-version" content="20261122145143">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261122144133">
+  <link rel="stylesheet" href="style.css?v=20261122145143">
 </head>
 <body>
   <header class="entete">
@@ -139,28 +139,24 @@
       </div>
 
       <h2 class="titre-section">Modèle 3D</h2>
-      <div class="carte">
-        <p class="petit muted" id="m3d-aide">Importe un modèle 3D (.glb) de ton véhicule pour l'afficher en haut de l'écran. Il reste sur ce téléphone.</p>
-        <div class="boutons">
-          <label class="bouton secondaire" id="m3d-libelle">Importer un modèle (.glb)<input type="file" id="v-m3d" hidden></label>
-          <button type="button" class="danger" id="v-m3d-retirer" hidden>Retirer le modèle</button>
-        </div>
+      <div class="carte liste-actions">
+        <label class="action" id="m3d-libelle">Importer un modèle (.glb)<input type="file" id="v-m3d" hidden></label>
+        <button type="button" class="action danger" id="v-m3d-retirer" hidden>Retirer le modèle</button>
       </div>
+      <p class="note-carte" id="m3d-aide">Importe un modèle 3D (.glb) de ton véhicule pour l'afficher en haut de l'écran. Il reste sur ce téléphone.</p>
 
       <h2 class="titre-section">Sauvegarde</h2>
-      <div class="carte">
-        <p class="petit muted">Les données sont stockées dans ce navigateur uniquement. Exporte-les régulièrement.</p>
-        <div class="boutons">
-          <button type="button" id="btn-export" class="secondaire">Exporter tout (JSON)</button>
-          <button type="button" id="btn-csv" class="secondaire">Historique en CSV</button>
-          <label class="bouton secondaire">Importer<input type="file" id="btn-import" accept=".json,application/json" hidden></label>
-        </div>
+      <div class="carte liste-actions">
+        <button type="button" class="action" id="btn-export">Exporter tout (JSON)</button>
+        <button type="button" class="action" id="btn-csv">Historique en CSV</button>
+        <label class="action">Importer une sauvegarde<input type="file" id="btn-import" accept=".json,application/json" hidden></label>
       </div>
+      <p class="note-carte">Les données sont stockées dans ce navigateur uniquement. Exporte-les régulièrement.</p>
 
       <h2 class="titre-section">Zone sensible</h2>
-      <div class="carte boutons">
-        <button type="button" id="btn-suppr-vehicule" class="danger">Supprimer ce véhicule</button>
-        <button type="button" id="btn-reset" class="danger">Tout effacer</button>
+      <div class="carte liste-actions">
+        <button type="button" class="action danger" id="btn-suppr-vehicule">Supprimer ce véhicule</button>
+        <button type="button" class="action danger" id="btn-reset">Tout effacer</button>
       </div>
     </section>
   </main>
@@ -191,6 +187,6 @@
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261122144133"></script>
+  <script src="app.js?v=20261122145143"></script>
 </body>
 </html>
