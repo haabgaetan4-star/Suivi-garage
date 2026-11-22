@@ -1259,7 +1259,7 @@ const Vue3D = {
   preparerImporte(source, type, couleur) {
     const T = THREE, g = source.clone(true);
     const bb = new T.Box3().setFromObject(g), t = bb.getSize(new T.Vector3());
-    const echelle = (type === "moto" ? 3.6 : 4.53) / Math.max(t.x, t.z);
+    const echelle = (type === "moto" ? 4.0 : 4.53) / Math.max(t.x, t.z); // moto un peu agrandie pour remplir la carte
     g.scale.setScalar(echelle);
     g.updateMatrixWorld(true);
     const b2 = new T.Box3().setFromObject(g), c = b2.getCenter(new T.Vector3());
