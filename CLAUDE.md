@@ -20,6 +20,9 @@ Direction artistique (palette tirée d'une image de référence du propriétaire
 doré #f1c467 pour « Bientôt », thème sombre uniquement ;
 les couleurs sont des variables CSS en tête de style.css.
 
+Icône de l'appli (clé + tournevis cuivrés sur fond noir) : dossier icones/ (SVG source, PNG 180/192/512/32,
+manifest.webmanifest) ; régénérer les PNG depuis icone-carree.svg si le dessin change.
+
 ## Publication
 
 - Le propriétaire autorise la publication directe sur `main`, sans pull request.
