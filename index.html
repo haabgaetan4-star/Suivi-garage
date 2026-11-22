@@ -9,9 +9,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Garage">
-  <meta name="app-version" content="20261122122951">
+  <meta name="app-version" content="20261122123620">
   <title>Suivi garage</title>
-  <link rel="stylesheet" href="style.css?v=20261122122951">
+  <link rel="stylesheet" href="style.css?v=20261122123620">
 </head>
 <body>
   <header class="entete">
@@ -134,6 +134,21 @@
         <p class="petit muted">Enregistré automatiquement.</p>
       </form>
 
+      <h2 class="titre-section">Photo du véhicule</h2>
+      <div class="carte photo-vehicule">
+        <div class="apercu-vehicule" id="apercu-vehicule"></div>
+        <p class="petit muted" id="photo-aide">Ajoute une photo de ton véhicule pour l'afficher en haut de l'écran. Elle reste sur ce téléphone.</p>
+        <div class="boutons">
+          <label class="bouton secondaire" id="v-photo-libelle">Choisir une photo<input type="file" id="v-photo" accept="image/*" hidden></label>
+          <button type="button" class="danger" id="v-photo-retirer" hidden>Retirer la photo</button>
+        </div>
+        <div class="cadrage" id="cadrage" hidden>
+          <label class="champ">Position horizontale<input type="range" id="c-x" min="0" max="100" step="1"></label>
+          <label class="champ">Position verticale<input type="range" id="c-y" min="0" max="100" step="1"></label>
+          <label class="champ">Zoom<input type="range" id="c-z" min="100" max="300" step="5"></label>
+        </div>
+      </div>
+
       <h2 class="titre-section">Plan d'entretien</h2>
       <p class="aide muted">Périodicités indicatives : vérifie le carnet d'entretien du véhicule. Laisse vide ce qui ne s'applique pas.</p>
       <div id="plan-type"></div>
@@ -192,6 +207,6 @@
   </div>
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20261122122951"></script>
+  <script src="app.js?v=20261122123620"></script>
 </body>
 </html>
