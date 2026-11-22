@@ -1510,8 +1510,41 @@ function telecharger(nom, contenu, type) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-$("#btn-export").addEventListener("click", () =>
-  telecharger(`suivi-garage-${aujourdhui()}.json`, JSON.stringify(data, null, 2), "application/json"));
+// Partage du fichier (iPhone : menu de partage → « Enregistrer dans Fichiers »), sinon téléchargement
+async function enregistrerFichier(nom, contenu, type) {
+  const fichier = new File([contenu], nom, { type });
+  if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+    try { await navigator.share({ files: [fichier], title: nom }); return true; }
+    catch (e) { if (e.name === "AbortError") return false; } // annulé par l'utilisateur
+  }
+  telecharger(nom, contenu, type);
+  return true;
+}
+const blobVersBase64 = blob => new Promise((ok, ko) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(",")[1]);
+  r.onerror = () => ko(r.error);
+  r.readAsDataURL(blob);
+});
+function base64VersBlob(b64, type) {
+  const bin = atob(b64), octets = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
+  return new Blob([octets], { type });
+}
+// Sauvegarde complète : données + fichiers stockés sur l'appareil (factures, modèles 3D, anciennes photos)
+$("#btn-export").addEventListener("click", async () => {
+  const ids = [...new Set(data.vehicules.flatMap(v => [...v.interventions.map(i => i.facture), v.infos.modele3d, v.infos.photo]).filter(Boolean))];
+  const fichiers = [];
+  for (const id of ids) {
+    try {
+      const blob = await Photos.lire(id);
+      if (blob) fichiers.push({ id, type: blob.type || "application/octet-stream", base64: await blobVersBase64(blob) });
+    } catch (e) { /* fichier illisible : ignoré */ }
+  }
+  const sauvegarde = { sauvegardeComplete: 1, date: aujourdhui(), donnees: data, fichiers };
+  const ok = await enregistrerFichier(`suivi-garage-${aujourdhui()}.json`, JSON.stringify(sauvegarde), "application/json");
+  if (ok) toast(`Sauvegarde prête : ${data.vehicules.length} véhicule${data.vehicules.length > 1 ? "s" : ""}, ${fichiers.length} fichier${fichiers.length > 1 ? "s" : ""}`);
+});
 $("#btn-csv").addEventListener("click", () => {
   const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
   const lignes = [["Véhicule", "Immatriculation", "Date", "Km", "Opération", "Garage", "Remarques", "Coût TTC"].map(q).join(";")];
@@ -1524,14 +1557,25 @@ $("#btn-import").addEventListener("change", async e => {
   e.target.value = "";
   if (!f) return;
   try {
-    const d = migrer(JSON.parse(await f.text()));
+    const brut = JSON.parse(await f.text());
+    // sauvegarde complète (données + fichiers) ou ancien export (données seules)
+    const complete = brut && brut.sauvegardeComplete && brut.donnees;
+    const d = migrer(complete ? brut.donnees : brut);
     if (!d) throw new Error("format");
-    if (!confirm("Remplacer toutes les données actuelles par celles du fichier ?")) return;
-    data = d; sauver(); resetFormInterv(); rendre(); nettoyerPhotos(); toast("Import réussi");
+    const fichiers = complete && Array.isArray(brut.fichiers) ? brut.fichiers : [];
+    if (!confirm(`Remplacer toutes les données actuelles par celles du fichier ?\n${d.vehicules.length} véhicule(s), ${fichiers.length} fichier(s) (factures, modèles 3D).`)) return;
+    let restaures = 0;
+    for (const x of fichiers) {
+      try { await Photos.mettre(x.id, base64VersBlob(x.base64, x.type)); restaures++; } catch (err) { /* stockage plein ou indisponible */ }
+    }
+    data = d; sauver();
+    Vue3D.importes.clear(); Vue3D.modeles.clear();
+    resetFormInterv(); rendre(); nettoyerPhotos();
+    toast(fichiers.length ? `Import réussi : ${restaures}/${fichiers.length} fichiers restaurés` : "Import réussi");
   } catch { toast("⚠️ Fichier invalide"); }
 });
 $("#btn-reset").addEventListener("click", () => {
-  if (confirm("Effacer tous les véhicules et tout l'historique ? Pense à exporter avant.")) {
+  if (confirm("Effacer tous les véhicules et tout l'historique ? Fais une sauvegarde complète avant.")) {
     data = etatVide(); sauver(); resetFormInterv(); rendre(); nettoyerPhotos(); toast("Données effacées");
   }
 });
