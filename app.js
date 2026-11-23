@@ -1276,7 +1276,7 @@ const Vue3D = {
     camera.position.set(5.5, 2.4, 6.6);
     camera.lookAt(0, 0.68, 0);
     // angle de départ : trois quarts avant pour une voiture, plus de profil pour une moto (silhouette étroite)
-    const repos = type === "moto" ? -0.3 : -0.6; // trois quarts avant
+    const repos = type === "moto" ? -1.9 : -1.6; // trois quarts avant marqué, avant du véhicule tourné vers la gauche
     m = { cle, scene, camera, pivot, repos, angle: m ? m.angle : repos };
     pivot.rotation.y = m.angle;
     this.modeles.set(v.id, m);
