@@ -249,7 +249,7 @@ function rappelLoiMontagne(v) {
   const auj = new Date(aujourdhui() + "T00:00:00"), an = auj.getFullYear(), mois = auj.getMonth() + 1;
   const monte = trainMonte(v), hiverMonte = monte && /hiver|4 saisons/i.test(monte.train.saison);
   const aUnTrainHiver = v.pneus.trains.some(t => /hiver|4 saisons/i.test(t.saison));
-  const action = `<button type="button" class="fait" data-pneus-accueil>${v.pneus.trains.length ? "Changer" : "Pneus"}</button>`;
+  const action = `<button type="button" class="fait" data-pneus-accueil>${v.pneus.trains.length ? "Changer" : "Ajouter"}</button>`;
   const carte = (statut, nom, lignes) => `<div class="rappel ${statut}"><div class="rappel-texte">
       <div class="rappel-nom">${nom}<span class="rappel-statut">${statut === "late" ? "En retard" : "Bientôt"}</span></div>
       ${lignes.map(l => `<div class="rappel-detail">${l}</div>`).join("")}</div>${action}</div>`;
@@ -1422,7 +1422,7 @@ document.querySelectorAll(".onglet").forEach(b => b.addEventListener("click", ()
 
 function changerVehicule(id) {
   data.actif = id;
-  $("#form-pneus").hidden = $("#form-train").hidden = true; // formulaires propres au véhicule quitté
+  $("#form-pneus").hidden = $("#form-train").hidden = $("#pn-rapide").hidden = $("#pn-ajout").hidden = true; // formulaires propres au véhicule quitté
   sauver(); $("#filtre").value = ""; resetFormInterv(); rendre();
 }
 function ajouterVehicule() {
@@ -1445,9 +1445,11 @@ $("#garage").addEventListener("click", e => {
 // Boutons « Fait » / « Saisir » des rappels
 $("#accueil").addEventListener("click", e => {
   if (e.target.closest("[data-pneus-accueil]")) {
-    allerOnglet("vehicules");
-    if (V().pneus.trains.length) ouvrirChangementPneus();
-    else $("#titre-pneus").scrollIntoView({ behavior: "smooth", block: "start" });
+    const v = V(), monte = trainMonte(v);
+    const cible = v.pneus.trains.find(t => (monte ? t.id !== monte.train.id : true) && /hiver|4 saisons/i.test(t.saison))
+      || v.pneus.trains.find(t => !monte || t.id !== monte.train.id);
+    if (cible) ouvrirMontageRapide(cible.id);
+    else { $("#pn-rapide").hidden = true; $("#pn-ajout").reset(); $("#pa-saison").value = "Hiver"; $("#pn-ajout").hidden = false; $("#carte-pneus").scrollIntoView({ behavior: "smooth", block: "start" }); }
     return;
   }
   const b = e.target.closest("[data-ajout]");
@@ -1522,12 +1524,15 @@ function kmParTrain(v) {
 }
 function rendrePneus() {
   const v = V(), trains = v.pneus.trains, monte = trainMonte(v), kms = kmParTrain(v);
-  // carte d'accueil
-  $("#carte-pneus").hidden = !trains.length;
-  if (trains.length) {
-    $("#pn-actuel").textContent = monte ? nomTrain(monte.train) : "À indiquer";
-    $("#pn-depuis").textContent = monte ? `depuis le ${dateFmt(monte.montage.date)} · ${kmFmt(kms[monte.train.id] || 0)}` : "Touche « Changer » pour choisir le train monté";
-  }
+  // carte d'accueil : tous les trains côte à côte, le train monté en surbrillance
+  $("#carte-pneus").hidden = !(trains.length || typeVehicule(v) === "voiture");
+  $("#pn-depuis").textContent = monte ? `Changé le ${dateFmt(monte.montage.date)}`
+    : trains.length ? "Touche le train monté sur le véhicule" : "Ajoute tes trains de pneus (été, hiver…)";
+  $("#pn-trains").innerHTML = trains.map(t => {
+    const estMonte = monte && monte.train.id === t.id;
+    return `<button type="button" class="pn-chip ${estMonte ? "monte" : ""}" data-pn-train="${t.id}" aria-pressed="${!!estMonte}">
+      ${esc(nomTrain(t))}<small>${estMonte ? "Monté · " : ""}${kmFmt(kms[t.id] || 0)}</small></button>`;
+  }).join("") + `<button type="button" class="pn-chip ajout" data-pn-ajout aria-label="Ajouter un train de pneus">＋</button>`;
   // liste dans l'onglet Véhicules
   $("#liste-pneus").innerHTML = trains.map(t => {
     const estMonte = monte && monte.train.id === t.id;
@@ -1585,22 +1590,66 @@ $("#form-train").addEventListener("submit", e => {
   toast(v.pneus.trains.length === 1 ? "Train ajouté : indique maintenant lequel est monté" : "Train de pneus ajouté");
   if (v.pneus.trains.length === 1) ouvrirChangementPneus();
 });
+// monte un train : montage + opération dans l'historique (et dans les coûts s'il a été facturé)
+function monterTrain(v, train, date, km, cout) {
+  const montage = { id: uid(), train: train.id, date, km };
+  v.pneus.montages.push(montage);
+  v.interventions.push({ id: uid(), date, km, type: `Montage pneus ${nomTrain(train)}`, cout: cout || 0,
+    garage: "", description: "", montagePneus: montage.id });
+  if (km > (kmCourant(v) ?? -1)) v.km = { valeur: km, date };
+  sauver(); rendre();
+  toast(`Pneus ${nomTrain(train)} montés`);
+}
 $("#form-pneus").addEventListener("submit", e => {
   e.preventDefault();
   const v = V(), train = v.pneus.trains.find(t => t.id === $("#pn-train").value);
-  const date = $("#pn-date").value, km = Number($("#pn-km").value);
+  const date = $("#pn-date").value;
   if (!train || !date || $("#pn-km").value === "") return toast("Indique le train, la date et le kilométrage");
-  const montage = { id: uid(), train: train.id, date, km };
-  v.pneus.montages.push(montage);
-  // le changement apparaît dans l'historique (et dans les coûts s'il a été facturé)
-  v.interventions.push({ id: uid(), date, km, type: `Montage pneus ${nomTrain(train)}`, cout: Number($("#pn-cout").value) || 0,
-    garage: "", description: "", montagePneus: montage.id });
-  if (km > (kmCourant(v) ?? -1)) v.km = { valeur: km, date };
   $("#form-pneus").hidden = true;
-  sauver(); rendre();
-  toast(`Pneus ${nomTrain(train)} montés`);
+  monterTrain(v, train, date, Number($("#pn-km").value), Number($("#pn-cout").value));
 });
-$("#btn-changer-pneus").addEventListener("click", () => { allerOnglet("vehicules"); ouvrirChangementPneus(); });
+
+// --- Carte Pneus de l'accueil : choisir le train monté, en ajouter un ---
+let trainChoisi = null;
+function ouvrirMontageRapide(trainId) {
+  const v = V(), t = v.pneus.trains.find(x => x.id === trainId), monte = trainMonte(v);
+  if (!t) return;
+  trainChoisi = t.id;
+  $("#pn-ajout").hidden = true;
+  $("#pn-rapide-titre").textContent = monte ? `Monter « ${nomTrain(t)} »` : `« ${nomTrain(t)} » monté depuis le…`;
+  $("#pr-date").value = aujourdhui();
+  $("#pr-km").value = kmCourant(v) ?? "";
+  $("#pr-cout").value = "";
+  $("#pn-rapide").hidden = false;
+  $("#carte-pneus").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("#pn-trains").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.hasAttribute("data-pn-ajout")) { $("#pn-rapide").hidden = true; $("#pn-ajout").reset(); $("#pn-ajout").hidden = false; return; }
+  const monte = trainMonte(V());
+  if (monte && monte.train.id === b.dataset.pnTrain) return toast(`Déjà monté depuis le ${dateFmt(monte.montage.date)}`);
+  ouvrirMontageRapide(b.dataset.pnTrain);
+});
+document.querySelectorAll("#pn-rapide [data-annuler], #pn-ajout [data-annuler]").forEach(b =>
+  b.addEventListener("click", () => { b.closest("form").hidden = true; }));
+$("#pn-rapide").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = V(), t = v.pneus.trains.find(x => x.id === trainChoisi);
+  if (!t || !$("#pr-date").value || $("#pr-km").value === "") return toast("Indique la date et le kilométrage");
+  $("#pn-rapide").hidden = true;
+  monterTrain(v, t, $("#pr-date").value, Number($("#pr-km").value), Number($("#pr-cout").value));
+});
+$("#pn-ajout").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = V(), t = { id: uid(), saison: $("#pa-saison").value, nom: $("#pa-nom").value.trim() };
+  v.pneus.trains.push(t);
+  $("#pn-ajout").hidden = true;
+  sauver(); rendre();
+  // premier train : on demande tout de suite depuis quand il est monté
+  if (!trainMonte(v)) { toast("Train ajouté : indique depuis quand il est monté"); ouvrirMontageRapide(t.id); }
+  else toast("Train de pneus ajouté");
+});
 $("#form-vehicule").addEventListener("change", e => {
   const v = V();
   v.infos = {
