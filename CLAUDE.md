@@ -25,6 +25,8 @@ Direction artistique (palette tirée d'une image de référence du propriétaire
 à la demande du propriétaire), cartes #1a1413, accent cuivré #f8893a / #e76728 (dégradé sur les boutons, texte très sombre dessus),
 doré #f1c467 pour « Bientôt », thème sombre uniquement ;
 les couleurs sont des variables CSS en tête de style.css.
+Barre d'onglets façon « Liquid Glass » (iOS 26, imitation CSS) : pilule flottante translucide, pastille
+`.pastille-onglet` déplacée via la variable `--i` dans `allerOnglet`.
 
 Icône de l'appli (clé + tournevis cuivrés sur fond noir) : dossier icones/ (SVG source, PNG 180/192/512/32,
 manifest.webmanifest) ; régénérer les PNG depuis icone-carree.svg si le dessin change.

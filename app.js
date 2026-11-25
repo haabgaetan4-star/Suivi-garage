@@ -1415,6 +1415,9 @@ $("#v-m3d-retirer").addEventListener("click", () => {
 function allerOnglet(nom) {
   document.querySelectorAll(".onglet, .panel").forEach(e => e.classList.remove("active"));
   $(`.onglet[data-tab="${nom}"]`).classList.add("active");
+  // la pastille de verre glisse sous l'onglet actif
+  const onglets = [...document.querySelectorAll(".onglet")];
+  $(".barre-onglets").style.setProperty("--i", onglets.findIndex(o => o.dataset.tab === nom));
   $("#" + nom).classList.add("active");
   window.scrollTo(0, 0);
 }
