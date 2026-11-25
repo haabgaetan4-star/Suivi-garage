@@ -392,6 +392,9 @@ button:active, .bouton:active { transform: scale(.97); }
 .lp-monte { font-size: .72rem; font-weight: 700; color: var(--sur-accent); background: var(--accent); padding: 2px 8px; border-radius: 999px; }
 .barre-form { justify-content: flex-end; margin-top: 12px; }
 #form-pneus .champ + .deux-col, #form-pneus .deux-col + .champ { margin-top: 12px; }
+.liste-actions .action.option { color: var(--texte); }
+.liste-actions .action.option::after { content: none; }
+.etat-option { margin-left: auto; color: var(--muted); font-weight: 500; font-size: .85rem; }
 .plan-type { font-size: .78rem; color: var(--muted); margin: -4px 4px 10px; }
 button.lien { display: inline; min-height: 0; padding: 0; border-radius: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; }
 

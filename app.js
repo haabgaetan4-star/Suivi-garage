@@ -119,6 +119,7 @@ function normaliserVehicule(v) {
     pneus: {
       trains: Array.isArray(v.pneus?.trains) ? v.pneus.trains : [],
       montages: Array.isArray(v.pneus?.montages) ? v.pneus.montages : [],
+      ...(v.pneus?.loiMontagne === false ? { loiMontagne: false } : {}), // rappel loi Montagne désactivé
     },
   };
 }
@@ -239,6 +240,37 @@ function htmlRappel(r) {
   </div>`;
 }
 
+// ---------- Rappel loi Montagne (pneus hiver ou chaînes du 1er novembre au 31 mars) ----------
+// Sources : Service-Public (actualité A14389, hiver 2026-2027) et décret n° 2020-1264 du 16 octobre 2020.
+// Concerne voitures, utilitaires et camping-cars dans les communes de montagne fixées par arrêté préfectoral ;
+// les motos ne sont pas visées. Pneus admis : 3PMSF (montagne + flocon), sinon chaînes ou chaussettes à bord.
+function rappelLoiMontagne(v) {
+  if (typeVehicule(v) !== "voiture" || v.pneus.loiMontagne === false) return null;
+  const auj = new Date(aujourdhui() + "T00:00:00"), an = auj.getFullYear(), mois = auj.getMonth() + 1;
+  const monte = trainMonte(v), hiverMonte = monte && /hiver|4 saisons/i.test(monte.train.saison);
+  const aUnTrainHiver = v.pneus.trains.some(t => /hiver|4 saisons/i.test(t.saison));
+  const action = `<button type="button" class="fait" data-pneus-accueil>${v.pneus.trains.length ? "Changer" : "Pneus"}</button>`;
+  const carte = (statut, nom, lignes) => `<div class="rappel ${statut}"><div class="rappel-texte">
+      <div class="rappel-nom">${nom}<span class="rappel-statut">${statut === "late" ? "En retard" : "Bientôt"}</span></div>
+      ${lignes.map(l => `<div class="rappel-detail">${l}</div>`).join("")}</div>${action}</div>`;
+  const equipement = "Pneus hiver 3PMSF (montagne + flocon) ou chaînes / chaussettes à bord";
+  // du 15 au 31 octobre : préparer le passage aux pneus hiver
+  if (mois === 10 && auj.getDate() >= 15 && !hiverMonte) {
+    const j = Math.round((new Date(an, 10, 1) - auj) / 86400000);
+    return carte("soon", "Pneus hiver · loi Montagne", [`Obligatoire <strong>dans ${duree(j)}</strong> (1er novembre) dans les communes de montagne`, equipement]);
+  }
+  // du 1er novembre au 31 mars : obligation en vigueur
+  if ((mois >= 11 || mois <= 3) && !hiverMonte) {
+    return carte("soon", "Pneus hiver · loi Montagne", [`Obligation <strong>en vigueur jusqu'au 31 mars</strong> dans les communes de montagne`,
+      aUnTrainHiver ? "Tes pneus hiver ne sont pas montés : chaînes ou chaussettes à bord sinon" : equipement]);
+  }
+  // en avril : penser à remonter les pneus été (les pneus hiver s'usent vite au chaud)
+  if (mois === 4 && monte && /hiver/i.test(monte.train.saison) && v.pneus.trains.some(t => /été/i.test(t.saison))) {
+    return carte("soon", "Pneus été", ["Obligation loi Montagne <strong>terminée depuis le 31 mars</strong>", "Tu peux remonter tes pneus été"]);
+  }
+  return null;
+}
+
 // ---------- Rendu ----------
 function rendre() {
   rendreEntete();
@@ -300,7 +332,8 @@ function rendreAccueil() {
   const aJour = rappels.filter(r => r.statut === "ok");
   const jamais = rappels.filter(r => r.statut === "none");
 
-  $("#liste-aprevoir").innerHTML = aPrevoir.length ? aPrevoir.map(htmlRappel).join("")
+  const saison = rappelLoiMontagne(v);
+  $("#liste-aprevoir").innerHTML = (saison || aPrevoir.length) ? (saison || "") + aPrevoir.map(htmlRappel).join("")
     : `<div class="vide-rappels">✓ Rien à prévoir pour l'instant</div>`;
   $("#liste-ajour").innerHTML = aJour.map(htmlRappel).join("");
   $("#nb-ajour").textContent = aJour.length;
@@ -1411,6 +1444,12 @@ $("#garage").addEventListener("click", e => {
 
 // Boutons « Fait » / « Saisir » des rappels
 $("#accueil").addEventListener("click", e => {
+  if (e.target.closest("[data-pneus-accueil]")) {
+    allerOnglet("vehicules");
+    if (V().pneus.trains.length) ouvrirChangementPneus();
+    else $("#titre-pneus").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   const b = e.target.closest("[data-ajout]");
   if (!b) return;
   resetFormInterv();
@@ -1499,7 +1538,9 @@ function rendrePneus() {
     </div>`;
   }).join("")
     + (trains.length ? '<button type="button" class="action" data-pneus="changer">Changer de pneus</button>' : "")
-    + '<button type="button" class="action" data-pneus="ajouter">Ajouter un train de pneus</button>';
+    + '<button type="button" class="action" data-pneus="ajouter">Ajouter un train de pneus</button>'
+    + (typeVehicule(v) === "voiture"
+      ? `<button type="button" class="action option" data-pneus="montagne">Rappel loi Montagne<span class="etat-option">${v.pneus.loiMontagne === false ? "Désactivé" : "Activé"}</span></button>` : "");
 }
 function ouvrirChangementPneus() {
   const v = V(), monte = trainMonte(v);
@@ -1520,6 +1561,11 @@ $("#liste-pneus").addEventListener("click", e => {
   const v = V();
   if (b.dataset.pneus === "ajouter") { $("#form-pneus").hidden = true; $("#form-train").reset(); $("#form-train").hidden = false; $("#tr-nom").focus(); }
   if (b.dataset.pneus === "changer") ouvrirChangementPneus();
+  if (b.dataset.pneus === "montagne") {
+    v.pneus.loiMontagne = v.pneus.loiMontagne === false;
+    sauver(); rendre();
+    toast(v.pneus.loiMontagne ? "Rappel loi Montagne activé" : "Rappel loi Montagne désactivé");
+  }
   if (b.dataset.supprTrain) {
     const t = v.pneus.trains.find(x => x.id === b.dataset.supprTrain);
     if (!confirm(`Supprimer le train « ${nomTrain(t)} » ? Ses changements resteront dans l'historique.`)) return;

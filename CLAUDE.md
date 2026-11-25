@@ -17,6 +17,9 @@ Modèles 3D de l'en-tête : Three.js r128 (cdnjs), modèles génériques constru
 
 Pneus : `vehicule.pneus = { trains: [{id, saison, nom}], montages: [{id, train, date, km}] }` ; le train monté est
 le dernier montage par date ; chaque montage crée une opération d'historique liée par `montagePneus`.
+Rappel loi Montagne (`rappelLoiMontagne`, voitures uniquement, désactivable via `pneus.loiMontagne = false`) :
+15-31 oct. préparer, 1er nov.-31 mars obligation si pneus hiver non montés, avril : remonter les été.
+Sources : Service-Public A14389 et décret n° 2020-1264 ; vérifier ces règles chaque automne.
 
 Direction artistique (palette tirée d'une image de référence du propriétaire) : fond noir pur #000 (sans halo,
 à la demande du propriétaire), cartes #1a1413, accent cuivré #f8893a / #e76728 (dégradé sur les boutons, texte très sombre dessus),
