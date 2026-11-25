@@ -51,7 +51,7 @@ const PLANS_TYPES = [
       { type: "Jeu aux soupapes", km: 40000, mois: null },
       { type: "Liquide de frein", km: null, mois: 24 },
       { type: "Liquide de refroidissement", km: null, mois: 36 },
-      { type: "Durites de frein", km: null, mois: 48 },
+      { type: "Flexibles de frein (remplacement)", km: null, mois: 48 },
       { type: "Contrôle technique", km: null, mois: 36 },
     ],
     retirer: PLAN_DEFAUT.map(p => p.type), // opérations « voiture » du plan par défaut
@@ -102,7 +102,12 @@ const nouveauPlan = () => PLAN_DEFAUT.map(p => ({ id: uid(), ...p }));
 function vehiculeVide() {
   return { id: uid(), infos: { marque: "", modele: "", immat: "", mec: "" }, km: { valeur: null, date: null }, interventions: [], plan: nouveauPlan(), plansAppliques: [] };
 }
+// Opérations renommées : l'ancien nom est remplacé dans le plan et l'historique (les rappels restent liés)
+const RENOMMAGES = { "durites de frein": "Flexibles de frein (remplacement)" };
+const renommer = type => RENOMMAGES[(type || "").trim().toLowerCase()] || type;
 function normaliserVehicule(v) {
+  if (Array.isArray(v.plan)) v.plan.forEach(p => { p.type = renommer(p.type); });
+  if (Array.isArray(v.interventions)) v.interventions.forEach(i => { i.type = renommer(i.type); });
   return {
     id: v.id || uid(),
     infos: { marque: "", modele: "", immat: "", mec: "", ...(v.infos || {}) },
@@ -674,7 +679,8 @@ const SYNONYMES = [
   ["bougie", ["bougie"]],
   ["soupape", ["soupape"]],
   ["refroidissement", ["refroidissement", "antigel", "anti-gel"]],
-  ["durite", ["durite"]],
+  ["durite", ["durite", "flexible"]],
+  ["flexible", ["flexible", "durite"]],
   ["courroie", ["courroie"]],
 ];
 function motsCles(type) {
