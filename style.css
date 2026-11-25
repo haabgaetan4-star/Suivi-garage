@@ -379,6 +379,19 @@ button:active, .bouton:active { transform: scale(.97); }
 .liste-actions .action.danger { color: var(--late); background: none; }
 .liste-actions .action[hidden] + .action, .liste-actions .action[hidden] { border-top: none; }
 .note-carte { font-size: .78rem; color: var(--muted); margin: 0 6px 4px; }
+/* Pneus : carte d'accueil et liste des trains */
+.carte-pneus { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; }
+.pn-actuel { font-size: 1.05rem; font-weight: 800; }
+.carte-pneus .petit { margin-top: 0; font-size: .75rem; }
+.carte-pneus .secondaire { min-height: 38px; padding: 0 14px; flex: none; }
+.ligne-pneu { display: flex; align-items: center; gap: 10px; min-height: 52px; border-top: 1px solid var(--bord); }
+.liste-actions > :first-child { border-top: none; }
+.lp-texte { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lp-nom { font-weight: 700; }
+.lp-info { font-size: .8rem; color: var(--muted); }
+.lp-monte { font-size: .72rem; font-weight: 700; color: var(--sur-accent); background: var(--accent); padding: 2px 8px; border-radius: 999px; }
+.barre-form { justify-content: flex-end; margin-top: 12px; }
+#form-pneus .champ + .deux-col, #form-pneus .deux-col + .champ { margin-top: 12px; }
 .plan-type { font-size: .78rem; color: var(--muted); margin: -4px 4px 10px; }
 button.lien { display: inline; min-height: 0; padding: 0; border-radius: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; }
 

@@ -15,6 +15,9 @@ Modèles 3D de l'en-tête : Three.js r128 (cdnjs), modèles génériques constru
 (`MODELES_3D` : BMW Série 3 Touring E91 gris argent, Yamaha MT-09 2014-2016 gris mat), d'après ses photos, un seul contexte WebGL copié dans le canvas de chaque carte.
 (versions figées dans `OCR` dans app.js ; `window.OCR_CHEMINS` permet de les servir en local pour les tests).
 
+Pneus : `vehicule.pneus = { trains: [{id, saison, nom}], montages: [{id, train, date, km}] }` ; le train monté est
+le dernier montage par date ; chaque montage crée une opération d'historique liée par `montagePneus`.
+
 Direction artistique (palette tirée d'une image de référence du propriétaire) : fond noir pur #000 (sans halo,
 à la demande du propriétaire), cartes #1a1413, accent cuivré #f8893a / #e76728 (dégradé sur les boutons, texte très sombre dessus),
 doré #f1c467 pour « Bientôt », thème sombre uniquement ;

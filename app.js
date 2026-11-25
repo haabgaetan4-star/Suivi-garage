@@ -100,7 +100,7 @@ function toast(msg) {
 // Format : { format: 2, actif: id, vehicules: [{ id, infos, km, interventions, plan }] }
 const nouveauPlan = () => PLAN_DEFAUT.map(p => ({ id: uid(), ...p }));
 function vehiculeVide() {
-  return { id: uid(), infos: { marque: "", modele: "", immat: "", mec: "" }, km: { valeur: null, date: null }, interventions: [], plan: nouveauPlan(), plansAppliques: [] };
+  return { id: uid(), infos: { marque: "", modele: "", immat: "", mec: "" }, km: { valeur: null, date: null }, interventions: [], plan: nouveauPlan(), plansAppliques: [], pneus: { trains: [], montages: [] } };
 }
 // Opérations renommées : l'ancien nom est remplacé dans le plan et l'historique (les rappels restent liés)
 const RENOMMAGES = { "durites de frein": "Flexibles de frein (remplacement)" };
@@ -115,6 +115,11 @@ function normaliserVehicule(v) {
     interventions: Array.isArray(v.interventions) ? v.interventions : [],
     plan: Array.isArray(v.plan) ? v.plan : nouveauPlan(),
     plansAppliques: Array.isArray(v.plansAppliques) ? v.plansAppliques : [],
+    // trains de pneus (été, hiver…) et historique des montages
+    pneus: {
+      trains: Array.isArray(v.pneus?.trains) ? v.pneus.trains : [],
+      montages: Array.isArray(v.pneus?.montages) ? v.pneus.montages : [],
+    },
   };
 }
 
@@ -238,6 +243,7 @@ function htmlRappel(r) {
 function rendre() {
   rendreEntete();
   rendreAccueil();
+  rendrePneus();
   rendreChoix();
   rendreHistorique();
   rendreVehicules();
@@ -1383,6 +1389,7 @@ document.querySelectorAll(".onglet").forEach(b => b.addEventListener("click", ()
 
 function changerVehicule(id) {
   data.actif = id;
+  $("#form-pneus").hidden = $("#form-train").hidden = true; // formulaires propres au véhicule quitté
   sauver(); $("#filtre").value = ""; resetFormInterv(); rendre();
 }
 function ajouterVehicule() {
@@ -1446,6 +1453,8 @@ $("#liste-visites").addEventListener("click", e => {
   }
   if (b.dataset.facture) ouvrirFacture(b.dataset.facture);
   if (b.dataset.del && confirm("Supprimer cette opération de l'historique ?")) {
+    const op = v.interventions.find(x => x.id === b.dataset.del);
+    if (op && op.montagePneus) v.pneus.montages = v.pneus.montages.filter(m => m.id !== op.montagePneus);
     v.interventions = v.interventions.filter(x => x.id !== b.dataset.del);
     sauver(); rendre(); nettoyerPhotos(); toast("Opération supprimée");
   }
@@ -1454,6 +1463,98 @@ $("#filtre").addEventListener("input", rendreHistorique);
 
 // Véhicules (choix et ajout depuis le carrousel)
 $("#form-vehicule").addEventListener("submit", e => e.preventDefault());
+
+// ---------- Pneus : trains et montages ----------
+const nomTrain = t => t ? t.saison + (t.nom ? " · " + t.nom : "") : "–";
+const montagesTries = v => [...v.pneus.montages].filter(m => v.pneus.trains.some(t => t.id === m.train))
+  .sort((a, b) => a.date.localeCompare(b.date) || a.km - b.km);
+function trainMonte(v) {
+  const ms = montagesTries(v), m = ms[ms.length - 1];
+  return m ? { montage: m, train: v.pneus.trains.find(t => t.id === m.train) } : null;
+}
+// kilomètres parcourus avec chaque train : du montage jusqu'au changement suivant (ou au kilométrage actuel)
+function kmParTrain(v) {
+  const ms = montagesTries(v), res = {}, actuel = kmCourant(v);
+  ms.forEach((m, i) => {
+    const fin = i + 1 < ms.length ? ms[i + 1].km : actuel;
+    if (fin != null) res[m.train] = (res[m.train] || 0) + Math.max(0, fin - m.km);
+  });
+  return res;
+}
+function rendrePneus() {
+  const v = V(), trains = v.pneus.trains, monte = trainMonte(v), kms = kmParTrain(v);
+  // carte d'accueil
+  $("#carte-pneus").hidden = !trains.length;
+  if (trains.length) {
+    $("#pn-actuel").textContent = monte ? nomTrain(monte.train) : "À indiquer";
+    $("#pn-depuis").textContent = monte ? `depuis le ${dateFmt(monte.montage.date)} · ${kmFmt(kms[monte.train.id] || 0)}` : "Touche « Changer » pour choisir le train monté";
+  }
+  // liste dans l'onglet Véhicules
+  $("#liste-pneus").innerHTML = trains.map(t => {
+    const estMonte = monte && monte.train.id === t.id;
+    return `<div class="ligne-pneu">
+      <span class="lp-texte"><span class="lp-nom">${esc(nomTrain(t))}</span><span class="lp-info">${kmFmt(kms[t.id] || 0)} parcourus</span></span>
+      ${estMonte ? '<span class="lp-monte">Monté</span>' : ""}
+      <button type="button" class="icone-btn suppr" data-suppr-train="${t.id}" aria-label="Supprimer ce train">${ICONES.poubelle}</button>
+    </div>`;
+  }).join("")
+    + (trains.length ? '<button type="button" class="action" data-pneus="changer">Changer de pneus</button>' : "")
+    + '<button type="button" class="action" data-pneus="ajouter">Ajouter un train de pneus</button>';
+}
+function ouvrirChangementPneus() {
+  const v = V(), monte = trainMonte(v);
+  $("#form-train").hidden = true;
+  $("#pn-train").innerHTML = v.pneus.trains.map(t => `<option value="${t.id}">${esc(nomTrain(t))}</option>`).join("");
+  // propose par défaut un autre train que celui monté
+  const autre = v.pneus.trains.find(t => !monte || t.id !== monte.train.id);
+  if (autre) $("#pn-train").value = autre.id;
+  $("#pn-date").value = aujourdhui();
+  $("#pn-km").value = kmCourant(v) ?? "";
+  $("#pn-cout").value = "";
+  $("#form-pneus").hidden = false;
+  $("#form-pneus").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+$("#liste-pneus").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const v = V();
+  if (b.dataset.pneus === "ajouter") { $("#form-pneus").hidden = true; $("#form-train").reset(); $("#form-train").hidden = false; $("#tr-nom").focus(); }
+  if (b.dataset.pneus === "changer") ouvrirChangementPneus();
+  if (b.dataset.supprTrain) {
+    const t = v.pneus.trains.find(x => x.id === b.dataset.supprTrain);
+    if (!confirm(`Supprimer le train « ${nomTrain(t)} » ? Ses changements resteront dans l'historique.`)) return;
+    v.pneus.trains = v.pneus.trains.filter(x => x.id !== t.id);
+    v.pneus.montages = v.pneus.montages.filter(m => m.train !== t.id);
+    sauver(); rendre();
+  }
+});
+document.querySelectorAll("#form-train [data-annuler], #form-pneus [data-annuler]").forEach(b =>
+  b.addEventListener("click", () => { b.closest("form").hidden = true; }));
+$("#form-train").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = V();
+  v.pneus.trains.push({ id: uid(), saison: $("#tr-saison").value, nom: $("#tr-nom").value.trim() });
+  $("#form-train").hidden = true;
+  sauver(); rendre();
+  toast(v.pneus.trains.length === 1 ? "Train ajouté : indique maintenant lequel est monté" : "Train de pneus ajouté");
+  if (v.pneus.trains.length === 1) ouvrirChangementPneus();
+});
+$("#form-pneus").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = V(), train = v.pneus.trains.find(t => t.id === $("#pn-train").value);
+  const date = $("#pn-date").value, km = Number($("#pn-km").value);
+  if (!train || !date || $("#pn-km").value === "") return toast("Indique le train, la date et le kilométrage");
+  const montage = { id: uid(), train: train.id, date, km };
+  v.pneus.montages.push(montage);
+  // le changement apparaît dans l'historique (et dans les coûts s'il a été facturé)
+  v.interventions.push({ id: uid(), date, km, type: `Montage pneus ${nomTrain(train)}`, cout: Number($("#pn-cout").value) || 0,
+    garage: "", description: "", montagePneus: montage.id });
+  if (km > (kmCourant(v) ?? -1)) v.km = { valeur: km, date };
+  $("#form-pneus").hidden = true;
+  sauver(); rendre();
+  toast(`Pneus ${nomTrain(train)} montés`);
+});
+$("#btn-changer-pneus").addEventListener("click", () => { allerOnglet("vehicules"); ouvrirChangementPneus(); });
 $("#form-vehicule").addEventListener("change", e => {
   const v = V();
   v.infos = {
